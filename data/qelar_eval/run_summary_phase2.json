@@ -1,0 +1,9 @@
+{
+  "ok": 1440,
+  "fail": 0,
+  "skip": 0,
+  "total_jobs": 1440,
+  "elapsed_s": 6054.024715900421,
+  "workers": 6,
+  "jobs_file": "/workspace/out/t109_p18_20261023/phase2_jobs.json"
+}

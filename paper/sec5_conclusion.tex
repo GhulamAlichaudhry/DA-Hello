@@ -1,0 +1,20 @@
+\section{Conclusion}
+\label{sec:conclusion}
+This article proposed DA-HELLO, a HELLO scheduler for Q-learning
+underwater routers that sends a HELLO on first contact with a new
+neighbour, on a change of void status, and, optionally, after a long
+silence. Evaluated on two re-implemented hosts, MARV and QELAR, with
+state carried either in data headers or only in HELLOs, the results show
+that the value of HELLO scheduling depends on how routing state is
+disseminated. Where state travels only in HELLOs, DA-HELLO delivers
+$2.2$ to $3.0$ percentage points more than a jittered $120\,\mathrm{s}$
+periodic schedule on MARV with $43$ to $53\%$ fewer control bytes, and
+saves $45$ to $52\%$ of the bytes on QELAR, although non-inferiority in
+delivery was not established in its drifting scenarios. Where state
+travels in data headers, DA-HELLO matches sending no HELLOs, whereas
+periodic and Trickle schedules lose delivery; on QELAR this holds only
+with the first-contact reply switched off. The score-change test showed
+no demonstrated benefit. These conclusions rest on simulation of two
+re-implemented routers. Future work will select the configuration from
+the host's state carrier, test further trigger combinations, and
+validate against field or trace-driven current data.

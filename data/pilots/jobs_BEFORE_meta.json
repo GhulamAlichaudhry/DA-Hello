@@ -1,0 +1,74 @@
+{
+  "n_jobs": 180,
+  "seeds": [
+    20261114,
+    20261115,
+    20261116,
+    20261117,
+    20261118
+  ],
+  "set": "tuning",
+  "jobs.jsonl_sha256": "fd775c5b0519f1b3ed28afa0844989d71fa28c2b3409e416b43a6c400e8bb521",
+  "jobs_manifest.txt_sha256": "8f266706c5fea3c063a82f8fa62c18da0deba0f6b76b85693461f6110aee46e9",
+  "jobs.json_sha256": "6d2756e7ffb0a716b785122bfc15436de4e43e7a2ad11d14a39a571943ef0160",
+  "eval_addendum_sha256": "567c7fb829c9a531501e58b7a59ecb34d4f939936c44a6d3fa19b63c5bcc760d",
+  "exe_sha256": "e66b8970b6d4ad91cbe939b77b0ba2fb10e21521d68e08f4853fefee4dff7396",
+  "lib_sha256": "ad9cc623ee99eb44def7b243bf1b62e3954364b4f213ac486e7ff1ead3f24395",
+  "eval_flags": "OMITTED",
+  "linkOff": "1 on all jobs (binary requirement for disc=heard)",
+  "arms": [
+    [
+      "QELAR",
+      "alone"
+    ],
+    [
+      "QELAR",
+      "P60jit"
+    ],
+    [
+      "QELAR",
+      "trickle"
+    ],
+    [
+      "SAQR",
+      "alone"
+    ],
+    [
+      "SAQR",
+      "P60jit"
+    ],
+    [
+      "SAQR",
+      "trickle"
+    ],
+    [
+      "LQARP",
+      "lqarp"
+    ],
+    [
+      "LQARP",
+      "lqarp_posDa2"
+    ],
+    [
+      "LQARP",
+      "lqarp_noPose"
+    ],
+    [
+      "LQARP",
+      "lqarp_noPose_posDa2"
+    ],
+    [
+      "LQARP",
+      "periodic_ref"
+    ],
+    [
+      "LQARP",
+      "elqtp_ref"
+    ]
+  ],
+  "scenarios": [
+    "I",
+    "II",
+    "GM2"
+  ]
+}

@@ -1,0 +1,23 @@
+\begin{table*}[!t]
+\caption{HELLO Arms Shared Across Hosts. Only the Scheduler Differs;
+Join Announcement and 60~s Sink Beacon Are Common to Every Arm.}
+\label{tab:arms}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}llp{0.62\textwidth}@{}}
+\hline
+Arm & Role & Locked settings \\
+\hline
+B0 & No HELLO after join & Sink beacon only \\
+Periodic & Jittered period $T$ & MARV $T\in\{20,40,60,120\}$; QELAR $\{60,120\}$; free first round at $t{=}0$ \\
+Trickle & Table-change inconsistency & MARV tuned: $I_{\min}{=}20\,\mathrm{s}$, $8$ dbl., $k{=}5$; QELAR host defaults (not matched) \\
+\hline
+\multicolumn{3}{@{}l@{}}{\emph{DA-HELLO (locked on tuning seeds 20261114--23)}}\\
+MARV header & FC on & $\mathrm{daMargin}{=}0.02$, $\mathrm{daImin}{=}10$, $5$ dbl., refresh $0$ \\
+MARV HELLO-only & FC on & $\mathrm{daMargin}{=}0$, $\mathrm{daImin}{=}2$, $5$ dbl., refresh $480\,\mathrm{s}$ \\
+QELAR header & FC \emph{off} & $\mathrm{daMargin}{=}10$, $\mathrm{daImin}{=}10$, $5$ dbl., refresh $0$ \\
+QELAR HELLO-only & FC on & $\mathrm{daMargin}{=}0$, $\mathrm{daImin}{=}2$, $5$ dbl., refresh $480\,\mathrm{s}$ \\
+\hline
+\end{tabular}
+\end{table*}

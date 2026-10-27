@@ -1,0 +1,46 @@
+{
+  "chosen_arm": "da_m10",
+  "chosen_margin": 10.0,
+  "pooled_loss_mean": 0.005716056980000004,
+  "pooled_loss_pp": 0.5716056980000004,
+  "pooled_loss_ci": [
+    -0.0356031756806103,
+    0.0470352896406103
+  ],
+  "hello_mean": 161.7,
+  "gate_5pp_pass": true,
+  "include_piggy_da_fc_off_in_phase2": true,
+  "all_arms": [
+    {
+      "arm": "da_m0.02",
+      "pooled_loss_mean": 0.021956680999999995,
+      "pooled_loss_lo": -0.01522894176204986,
+      "pooled_loss_hi": 0.05914230376204985,
+      "n": 20,
+      "sd": 0.07945492621271569,
+      "hello_mean": 386.45
+    },
+    {
+      "arm": "da_m0.5",
+      "pooled_loss_mean": 0.008310958199999986,
+      "pooled_loss_lo": -0.03911188200946157,
+      "pooled_loss_hi": 0.055733798409461535,
+      "n": 20,
+      "sd": 0.10132890052027368,
+      "hello_mean": 287.95
+    },
+    {
+      "arm": "da_m10",
+      "pooled_loss_mean": 0.005716056980000004,
+      "pooled_loss_lo": -0.0356031756806103,
+      "pooled_loss_hi": 0.0470352896406103,
+      "n": 20,
+      "sd": 0.08828725562088306,
+      "hello_mean": 161.7
+    }
+  ],
+  "tie_cands": [
+    "da_m10",
+    "da_m0.5"
+  ]
+}

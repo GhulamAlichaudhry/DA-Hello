@@ -1,0 +1,638 @@
+--- ${WORKSPACE}/DA-HELLO-porta/build_p14/src/model/dahello-protocol.cc	2026-10-22 09:29:48.023804617 +0800
++++ ${WORKSPACE}/DA-HELLO-porta/build_p15v2/src/model/dahello-protocol.cc	2026-10-22 23:27:35.286551207 +0800
+@@ -12,6 +12,7 @@
+ #include <algorithm>
+ #include <cmath>
+ #include <limits>
++#include <random>
+ #include <stdexcept>
+ #include <vector>
+ 
+@@ -270,6 +271,8 @@
+     if (cfg_.energyRefreshS > 0.0) {
+         nextEnergyRefresh_ = cfg_.energyRefreshS;
+     }
++    // p15 A2.2(a): default false leaves nextPeriodicTime_/nextEnergyRefresh_ grids unchanged (= p14).
++    initPeriodicJitterOffsets();
+ }
+ 
+ void
+@@ -1304,6 +1307,91 @@
+     }
+ }
+ 
++void
++DahelloProtocol::initPeriodicJitterOffsets()
++{
++    // Default false: leave shared grids alone (= p14).
++    if (!cfg_.periodicJitter) {
++        return;
++    }
++    const size_t n = nodes_.size();
++    // Seed mixes run seed with a fixed salt (same family as marv-T jitter in scenario).
++    std::mt19937_64 rng(cfg_.periodicJitterSeed);
++    if (cfg_.broadcastMode == BroadcastMode::FixedPeriodic && cfg_.T_ctrl > 0.0
++        && std::isfinite(cfg_.T_ctrl)) {
++        std::uniform_real_distribution<double> u(0.0, cfg_.T_ctrl);
++        periodicJitterOff_.assign(n, 0.0);
++        nextPeriodicPerNode_.assign(n, 0.0);
++        for (size_t j = 0; j < n; ++j) {
++            periodicJitterOff_[j] = u(rng);
++            // First fire at offset_j (k = 0). skipInitialControlRound already skipped t=0 all-node emit.
++            nextPeriodicPerNode_[j] = periodicJitterOff_[j];
++        }
++    }
++    if (cfg_.energyRefreshS > 0.0 && std::isfinite(cfg_.energyRefreshS)) {
++        std::uniform_real_distribution<double> ue(0.0, cfg_.energyRefreshS);
++        energyJitterOff_.assign(n, 0.0);
++        nextEnergyPerNode_.assign(n, 0.0);
++        for (size_t j = 0; j < n; ++j) {
++            energyJitterOff_[j] = ue(rng);
++            nextEnergyPerNode_[j] = energyJitterOff_[j];
++        }
++    }
++}
++
++void
++DahelloProtocol::emitPeriodicControlFrom(uint32_t j)
++{
++    // Single-node FixedPeriodic HELLO (jittered path). Same per-receiver effect as the
++    // j-loop body of emitPeriodicControl(); does not clear other nodes' broadcast_k.
++    if (j >= nodes_.size()) {
++        return;
++    }
++    for (uint32_t i = 0; i < nodes_.size() && !cfg_.heardOnly; ++i) {
++        if (i == j) {
++            continue;
++        }
++        NeighborEkf& s = ekf_[i][j];
++        if (!helloReaches(i, j)) {
++            s.broadcast_k = 0;
++            continue;
++        }
++        s.broadcast_k = 1;
++        if (!helloSuppressed_[j]) {
++            ingestBroadcastVelocity(s, i, j, nodes_[j].vx, nodes_[j].vy, nodes_[j].vz);
++        }
++    }
++    ++eventHelloCount_;
++    broadcastFrom(j);
++    if (txHook_) {
++        txHook_(j, 1);
++    }
++}
++
++void
++DahelloProtocol::refreshEnergyOnlyFrom(uint32_t j)
++{
++    // Single-node energy-only beacon (jittered path).
++    if (j >= nodes_.size()) {
++        return;
++    }
++    for (uint32_t i = 0; i < nodes_.size(); ++i) {
++        if (i == j) {
++            continue;
++        }
++        NeighborEkf& s = ekf_[i][j];
++        if (!s.zohHeard || !helloReaches(i, j)) {
++            continue;
++        }
++        s.energy_j_zoh = quantizeEnergy(nodes_[j].energy);
++    }
++    ++energyHelloCount_;
++    ctrlRxBeacon_ += broadcastFromCount(j);
++    if (txHook_) {
++        txHook_(j, 4);
++    }
++}
++
+ double
+ DahelloProtocol::quantizeEnergy(double joules) const
+ {
+@@ -1442,18 +1530,29 @@
+     }
+     simTime_ += step;
+     if (cfg_.broadcastMode == BroadcastMode::FixedPeriodic) {
+-        bool fired = false;
+         const double T = cfg_.T_ctrl;
+-        while (simTime_ + 1e-12 >= nextPeriodicTime_) {
+-            emitPeriodicControl();
+-            fired = true;
+-            if (!(T > 0.0) || !std::isfinite(T)) {
+-                break;
+-            }
+-            nextPeriodicTime_ += T;
+-        }
+-        if (!fired) {
++        if (cfg_.periodicJitter && !nextPeriodicPerNode_.empty() && T > 0.0 && std::isfinite(T)) {
++            // Per-node phase: node j fires at offset_j + kT (k >= 0). No shared grid.
+             clearBroadcastFlags();
++            for (uint32_t j = 0; j < nextPeriodicPerNode_.size(); ++j) {
++                while (simTime_ + 1e-12 >= nextPeriodicPerNode_[j]) {
++                    emitPeriodicControlFrom(j);
++                    nextPeriodicPerNode_[j] += T;
++                }
++            }
++        } else {
++            bool fired = false;
++            while (simTime_ + 1e-12 >= nextPeriodicTime_) {
++                emitPeriodicControl();
++                fired = true;
++                if (!(T > 0.0) || !std::isfinite(T)) {
++                    break;
++                }
++                nextPeriodicTime_ += T;
++            }
++            if (!fired) {
++                clearBroadcastFlags();
++            }
+         }
+     } else if (cfg_.broadcastMode == BroadcastMode::Adaptive) {
+         clearBroadcastFlags();
+@@ -1486,12 +1585,21 @@
+ 
+     if (cfg_.energyRefreshS > 0.0) {
+         const double Te = cfg_.energyRefreshS;
+-        while (simTime_ + 1e-12 >= nextEnergyRefresh_) {
+-            refreshEnergyOnly();
+-            if (!(Te > 0.0) || !std::isfinite(Te)) {
+-                break;
++        if (cfg_.periodicJitter && !nextEnergyPerNode_.empty() && Te > 0.0 && std::isfinite(Te)) {
++            for (uint32_t j = 0; j < nextEnergyPerNode_.size(); ++j) {
++                while (simTime_ + 1e-12 >= nextEnergyPerNode_[j]) {
++                    refreshEnergyOnlyFrom(j);
++                    nextEnergyPerNode_[j] += Te;
++                }
++            }
++        } else {
++            while (simTime_ + 1e-12 >= nextEnergyRefresh_) {
++                refreshEnergyOnly();
++                if (!(Te > 0.0) || !std::isfinite(Te)) {
++                    break;
++                }
++                nextEnergyRefresh_ += Te;
+             }
+-            nextEnergyRefresh_ += Te;
+         }
+     }
+ 
+--- ${WORKSPACE}/DA-HELLO-porta/build_p14/src/model/dahello-protocol.h	2026-10-22 09:29:48.027804705 +0800
++++ ${WORKSPACE}/DA-HELLO-porta/build_p15v2/src/model/dahello-protocol.h	2026-10-22 23:27:17.569888925 +0800
+@@ -75,6 +75,11 @@
+     // quantizer over [0, E_ini]. Addressing is a separate field.
+     int energyQuantBits = 0;
+     int energyAddrBits = 8;
++    // p15 A2.2(a): when true, FixedPeriodic HELLOs and energyRefreshS beacons use
++    // one per-node phase offset U[0,T) drawn at start-up (seeded from
++    // periodicJitterSeed). Default false = p14 lock-step grid.
++    bool periodicJitter = false;
++    uint64_t periodicJitterSeed = 0;
+     // Step 5: a HELLO / energy beacon from j writes i's hold for j only if
+     // i demodulates it (ChannelGate::receptionOk on j->i). false restores
+     // the pre-Step-5 network-wide write (diagnostic A/B only).
+@@ -375,6 +380,11 @@
+     mutable uint64_t bootstrapHelloCount_ = 0;
+     uint64_t energyHelloCount_ = 0;
+     double nextEnergyRefresh_ = 0.0;
++    // p15 A2.2(a): per-node next fire times when cfg_.periodicJitter (else unused).
++    std::vector<double> nextPeriodicPerNode_;
++    std::vector<double> nextEnergyPerNode_;
++    std::vector<double> periodicJitterOff_;
++    std::vector<double> energyJitterOff_;
+     uint64_t broadcastKOnes_ = 0;
+     uint64_t broadcastRising_ = 0;
+     std::vector<int> prevBroadcast_;
+@@ -444,7 +454,10 @@
+     double triggerEpsilon(double S) const;
+     double dSnrDRange(double rangeM, double receiverZ) const;
+     void emitPeriodicControl();
++    void emitPeriodicControlFrom(uint32_t j);
+     void refreshEnergyOnly();
++    void refreshEnergyOnlyFrom(uint32_t j);
++    void initPeriodicJitterOffsets();
+     double quantizeEnergy(double joules) const;
+     void clearBroadcastFlags();
+     void countEventControlTx();
+--- ${WORKSPACE}/DA-HELLO-porta/build_p14/src/examples/scenario-porta.inc	2026-10-22 09:30:26.588652943 +0800
++++ ${WORKSPACE}/DA-HELLO-porta/build_p15v2/src/examples/scenario-porta.inc	2026-10-22 09:30:37.952903343 +0800
+@@ -194,7 +194,8 @@
+     {
+       // Item 4 (amend1): the sink broadcasts its pose every sinkBeaconS (60 s), all arms.
+       // First beacon at t = sinkBeaconS; frame kind beacon, cause 6, helloBits.
+-      for (double t = sinkBeaconS; t < tSim + drainS; t += sinkBeaconS)
++      // p15 A2.2(d): t = sinkBeaconPhase + sinkBeaconS*k, k >= 1 (phase 0 = p14).
++      for (double t = sinkBeaconS + sinkBeaconPhase; t < tSim + drainS; t += sinkBeaconS)
+         {
+           Simulator::Schedule (Seconds (t), [this] {
+             const uint32_t s = sinkId;
+@@ -833,9 +834,15 @@
+           Simulator::Schedule (Seconds (t - now), &Pipeline::CmpFcFire, this, r, fcSt[r].token);
+         }
+     }
+-  if (newCmpOn && kind != dahello::kFrameAck && r < chNew.size () && r != s)
++  const bool hoSkip = helloOnlyHost && kind == dahello::kFrameData; // p15 A2.2(b)
++  if (newCmpOn && kind != dahello::kFrameAck && r < chNew.size () && r != s && hoSkip)
++    {
++      ++rwCmpDataSkipped; // p15: comparator table not written from data under --helloOnlyHost=1
++    }
++  if (newCmpOn && kind != dahello::kFrameAck && r < chNew.size () && r != s && !hoSkip)
+     {
+       // p13: r's OWN held table (decoded frames only). New/re-appearing id = table change.
++      if (kind == dahello::kFrameData) { ++rwCmpData; } else { ++rwCmpCtrl; } // p15 output-only
+       const size_t idx = static_cast<size_t> (r) * nNodes () + s;
+       const bool wasFresh = chT[idx] >= 0.0 && now - chT[idx] <= tNbS;
+       if (!wasFresh)
+@@ -855,6 +862,11 @@
+           chVx[idx] = pf.hvx; chVy[idx] = pf.hvy; chVz[idx] = pf.hvz; // tx-time snapshot in the frame
+         }
+     }
++  if (hoSkip)
++    {
++      ++rwDataSkipped; // p15 A2.2(b): data header writes nothing (porta.inc p14 :902-929 -> :934/:954/:958/:963)
++      return;
++    }
+   if (kind != dahello::kFrameAck)
+     {
+       // DIAG: gap since the previous hold-refreshing frame r <- s (no behaviour effect)
+@@ -929,8 +941,10 @@
+     }
+   else
+     {
++      ++rwAckDec;
+       return; // ACK: no hold
+     }
++  ++rwDec[kind < 4 ? kind : 3]; // p15 output-only: decode reaching the record writes, by kind
+   proto->applyHeardHold (r, s, now, x, y, z, vx, vy, vz, e, snrDb, num, V);
+   {
+     // QELAR / SAQR held write (amend1 I2 + v3 correction: V in their data headers)
+--- ${WORKSPACE}/DA-HELLO-porta/build_p14/src/examples/scenario-i-lqarp.cc	2026-10-22 09:30:26.572652591 +0800
++++ ${WORKSPACE}/DA-HELLO-porta/build_p15v2/src/examples/scenario-i-lqarp.cc	2026-10-22 23:27:53.135003169 +0800
+@@ -56,6 +56,11 @@
+ using namespace ns3;
+ 
+ namespace {
++// p15 A2.2(c): eddy centre / core radius (m). Defaults = p14 hard-coded EddyConfig values
++// (gauss-markov.h). Applied to the Pipeline eddy and to both diagnostic routines.
++double g_eddyCx = 3000.0;
++double g_eddyCy = 3000.0;
++double g_eddyR = 2000.0;
+ 
+ // Port A: mutable so --topo=t1 can set the deep column; defaults = legacy slab.
+ double kVolumeXyM = 6000.0;
+@@ -1180,8 +1185,24 @@
+   {
+     if (ctrl_ == Ctrl::Periodic)
+       {
+-        periodicRound ();
++        periodicRound (); // p14 build-time t=0 round (kept unchanged under --periodicJitter=1)
++        buildRoundRx_ = periodicRx_;
+         nextPeriodic_ = tCtrl_;
++        if (pjOn_ && tCtrl_ > 0.0)
++          {
++            // p15 A2.2(a): one phase offset U[0,T) per node at start-up, seeded from the
++            // run seed; node j sends at offset_j + kT (k >= 0) instead of the shared kT grid.
++            const uint32_t n = static_cast<uint32_t> (p_.nodes ().size ());
++            std::mt19937_64 rng (pjSeed_);
++            std::uniform_real_distribution<double> u (0.0, tCtrl_);
++            pjOff_.assign (n, 0.0);
++            pjFirst_.assign (n, std::numeric_limits<double>::quiet_NaN ());
++            for (uint32_t j = 0; j < n; ++j)
++              {
++                pjOff_[j] = u (rng);
++                Simulator::Schedule (Seconds (pjOff_[j]), &MarvFwd::pjFire, this, j, 0u);
++              }
++          }
+       }
+     if (ctrl_ == Ctrl::Trickle || ctrl_ == Ctrl::Speed || ctrl_ == Ctrl::Let || ctrl_ == Ctrl::Naive)
+       {
+@@ -1191,6 +1212,31 @@
+       }
+   }
+   void setAdaptiveSeed (uint32_t s) { adSeed_ = s; }
++  // p15 A2.2(a) / (e)
++  void setPeriodicJitter (bool on, uint64_t seed) { pjOn_ = on; pjSeed_ = seed; }
++  void setPollStored (bool on) { pollStored_ = on; }
++  bool periodicJitter () const { return pjOn_; }
++  const std::vector<double> &pjOffsets () const { return pjOff_; }
++  const std::vector<double> &pjFirstSend () const { return pjFirst_; }
++  uint64_t buildRoundRx () const { return buildRoundRx_; }
++  uint64_t pollLiveW () const { return pollLiveW_; }
++  uint64_t pollStoredW () const { return pollStoredW_; }
++  uint64_t pollEnergyLiveW () const { return pollEnergyLiveW_; }
++  uint64_t pollEnergyStoredW () const { return pollEnergyStoredW_; }
++  void pjFire (uint32_t j, uint32_t k)
++  {
++    const double now = Simulator::Now ().GetSeconds ();
++    if (isAlive (j))
++      {
++        if (!std::isfinite (pjFirst_[j]))
++          {
++            pjFirst_[j] = now;
++          }
++        sendOne (j, now);
++      }
++    const double next = pjOff_[j] + static_cast<double> (k + 1) * tCtrl_;
++    Simulator::Schedule (Seconds (next) - Simulator::Now (), &MarvFwd::pjFire, this, j, k + 1);
++  }
+   // t25: QLAR tau and naive refresh for marv-let / marv-naive.
+   void setLetFrac (double f) { letFrac_ = f; }
+   void setLetFloor (double s) { kLetTmin = s; } // p2 opt-in
+@@ -1426,7 +1472,7 @@
+             afterHsTick ();
+           }
+       }
+-    if (ctrl_ == Ctrl::Periodic && tCtrl_ > 0.0)
++    if (ctrl_ == Ctrl::Periodic && tCtrl_ > 0.0 && !pjOn_) // p15: jittered sends are self-scheduled (pjFire)
+       {
+         const double now = Simulator::Now ().GetSeconds ();
+         while (now + 1e-9 >= nextPeriodic_)
+@@ -1852,14 +1898,39 @@
+     const double now = Simulator::Now ().GetSeconds ();
+     if (std::isfinite (lz) && (!std::isfinite (polledZoh_[i][j]) || lz != polledZoh_[i][j]))
+       {
+-        p_.hear (i, j, p_.advertisedV (j), p_.advertisedVoid (j), s.energy_j_zoh, now);
++        if (pollStored_)
++          {
++            // p15 A2.2(e) --pollStored=1: V / void / t from i's stored record of j (as last
++            // written by a decoded frame); energy from the stored hold. No live read.
++            const dahello::MarvRecord r = p_.record (i, j);
++            if (r.heard)
++              {
++                p_.hear (i, j, r.V, r.voidFlag, s.energy_j_zoh, r.t);
++                ++pollStoredW_;
++              }
++          }
++        else
++          {
++            p_.hear (i, j, p_.advertisedV (j), p_.advertisedVoid (j), s.energy_j_zoh, now);
++            ++pollLiveW_;
++          }
+         polledZoh_[i][j] = lz;
+         polledE_[i][j] = s.energy_j_zoh;
+         return;
+       }
+     if (s.zohHeard && s.energy_j_zoh != polledE_[i][j])
+       {
+-        p_.hearEnergy (i, j, s.energy_j_zoh, now);
++        if (pollStored_)
++          {
++            const dahello::MarvRecord r = p_.record (i, j);
++            p_.hearEnergy (i, j, s.energy_j_zoh, r.t); // p15 (e): keep stored freshness time
++            ++pollEnergyStoredW_;
++          }
++        else
++          {
++            p_.hearEnergy (i, j, s.energy_j_zoh, now);
++            ++pollEnergyLiveW_;
++          }
+         polledE_[i][j] = s.energy_j_zoh;
+       }
+   }
+@@ -1927,6 +1998,13 @@
+   uint64_t nvVoidSends_ = 0, nvRefreshSends_ = 0; // t31 output-only
+   dahello::LetIntervalStats letStats_;             // t31 output-only
+   uint32_t adSeed_ = 1;
++  // p15 A2.2(a)/(e) state + output-only counters (written to --recWriteOut, never stdout)
++  bool pjOn_ = false;
++  uint64_t pjSeed_ = 0;
++  std::vector<double> pjOff_, pjFirst_;
++  bool pollStored_ = false;
++  uint64_t buildRoundRx_ = 0;
++  mutable uint64_t pollLiveW_ = 0, pollStoredW_ = 0, pollEnergyLiveW_ = 0, pollEnergyStoredW_ = 0;
+   uint64_t periodicRx_ = 0, adResets_ = 0, adSuppressed_ = 0;
+   std::mt19937 adRng_;
+   std::vector<double> adNext_, trI_, trStart_, trT_, trV_;
+@@ -2365,6 +2443,20 @@
+   double tNbS = 3600.0;              // neighbour freshness (heard mode)
+   bool tNbExplicit = false;          // item 4: --tNb given -> also applied to scheduler hosts
+   double sinkBeaconS = 0.0;          // item 4: sink pose beacon period (s); 0 = off (pre-item-4 behaviour)
++  // p15 Amendment 2 A2.2 switches (all default to p14 behaviour)
++  bool periodicJitter = false;       // (a) marv-T<s>: per-node phase U[0,T)
++  bool helloOnlyHost = false;        // (b) neighbour state only from HELLO/beacon decodes
++  double sinkBeaconPhase = 0.0;      // (d) beacons at phase + sinkBeaconS*k, k >= 1
++  bool pollStored = false;           // (e) pollPair reads the stored record
++  std::string recWriteOut;           // output-only counter file (empty = none)
++  // output-only neighbour-record write counters (no behaviour effect)
++  uint64_t rwDec[4] = {0, 0, 0, 0};  // decodes reaching the record-write stage, by frame kind index
++  uint64_t rwAckDec = 0;             // ACK decodes (never write)
++  uint64_t rwDataSkipped = 0;        // data decodes whose writes were suppressed (--helloOnlyHost=1)
++  uint64_t rwMarvHdr = 0, rwMarvHdrSkipped = 0; // 2nd MARV data-header write (porta.inc:577)
++  uint64_t rwCmpData = 0, rwCmpDataSkipped = 0; // comparator table writes from data frames
++  uint64_t rwCmpCtrl = 0;            // comparator table writes from HELLO/beacon
++  void WriteRecWrites () const;
+   uint64_t medSinkBcnTx = 0, medSinkBcnOk = 0;
+   // amend1 enforcement 2: poison of other nodes' kinematics/energy in each protocol
+   // copy for the duration of a host/policy call of actor i (heard mode only).
+@@ -2932,6 +3024,7 @@
+                           << "': use 'remove' (default) or 'open' (HOLD ablation).");
+         }
+       eddy.V = driftSpeed;
++      eddy.cx = g_eddyCx; eddy.cy = g_eddyCy; eddy.R = g_eddyR; // p15 A2.2(c)
+       gmCfg.zeta = 0.95;
+       gmCfg.dt = tickDt;
+       gmCfg.sigma_x = 1.0;
+@@ -3258,6 +3351,11 @@
+       static_cast<dahello::LqarpConfig &> (ec) = cfg;
+       ec.skipInitialControlRound = (discMode == "heard"); // p4
+       ec.helloRxGate = helloRxGate;
++      // p15 A2.2(a) v2: FixedPeriodic (--hostSched=periodic / protocol=periodic) and
++      // energyRefreshS (qelar/saqr/marv -energy) take per-node U[0,T) when set.
++      // Default false = p14 lock-step. marv-T jitter is handled in MarvFwd.
++      ec.periodicJitter = periodicJitter;
++      ec.periodicJitterSeed = static_cast<uint64_t> (seed) * 0xD1B54A32D192ED03ull + 41ull;
+       ec.bootstrapBroadcast = daBootFix;
+       ec.linkTriggerOff = daLinkOff;
+       if (isScenarioII () || isScenarioIII ())
+@@ -3303,6 +3401,11 @@
+       static_cast<dahello::LqarpConfig &> (ec) = cfg;
+       ec.skipInitialControlRound = (discMode == "heard"); // p4
+       ec.helloRxGate = helloRxGate;
++      // p15 A2.2(a) v2: FixedPeriodic (--hostSched=periodic / protocol=periodic) and
++      // energyRefreshS (qelar/saqr/marv -energy) take per-node U[0,T) when set.
++      // Default false = p14 lock-step. marv-T jitter is handled in MarvFwd.
++      ec.periodicJitter = periodicJitter;
++      ec.periodicJitterSeed = static_cast<uint64_t> (seed) * 0xD1B54A32D192ED03ull + 41ull;
+       ec.bootstrapBroadcast = daBootFix;
+       ec.linkTriggerOff = daLinkOff;
+       ec.beta_1 = std::isfinite (beta1) ? beta1 : 0.0;
+@@ -3330,6 +3433,11 @@
+       static_cast<dahello::LqarpConfig &> (ec) = cfg;
+       ec.skipInitialControlRound = (discMode == "heard"); // p4
+       ec.helloRxGate = helloRxGate;
++      // p15 A2.2(a) v2: FixedPeriodic (--hostSched=periodic / protocol=periodic) and
++      // energyRefreshS (qelar/saqr/marv -energy) take per-node U[0,T) when set.
++      // Default false = p14 lock-step. marv-T jitter is handled in MarvFwd.
++      ec.periodicJitter = periodicJitter;
++      ec.periodicJitterSeed = static_cast<uint64_t> (seed) * 0xD1B54A32D192ED03ull + 41ull;
+       ec.bootstrapBroadcast = daBootFix;
+       ec.linkTriggerOff = daLinkOff;
+       // Same reward betas as DA-HELLO so the ablation isolates
+@@ -3369,6 +3477,11 @@
+       static_cast<dahello::LqarpConfig &> (ec) = cfg;
+       ec.skipInitialControlRound = (discMode == "heard"); // p4
+       ec.helloRxGate = helloRxGate;
++      // p15 A2.2(a) v2: FixedPeriodic (--hostSched=periodic / protocol=periodic) and
++      // energyRefreshS (qelar/saqr/marv -energy) take per-node U[0,T) when set.
++      // Default false = p14 lock-step. marv-T jitter is handled in MarvFwd.
++      ec.periodicJitter = periodicJitter;
++      ec.periodicJitterSeed = static_cast<uint64_t> (seed) * 0xD1B54A32D192ED03ull + 41ull;
+       ec.bootstrapBroadcast = daBootFix;
+       ec.linkTriggerOff = daLinkOff;
+       ec.beta_1 = std::isfinite (beta1) ? beta1 : 0.0;
+@@ -3426,6 +3539,11 @@
+       static_cast<dahello::LqarpConfig &> (ec) = cfg;
+       ec.skipInitialControlRound = (discMode == "heard"); // p4
+       ec.helloRxGate = helloRxGate;
++      // p15 A2.2(a) v2: FixedPeriodic (--hostSched=periodic / protocol=periodic) and
++      // energyRefreshS (qelar/saqr/marv -energy) take per-node U[0,T) when set.
++      // Default false = p14 lock-step. marv-T jitter is handled in MarvFwd.
++      ec.periodicJitter = periodicJitter;
++      ec.periodicJitterSeed = static_cast<uint64_t> (seed) * 0xD1B54A32D192ED03ull + 41ull;
+       ec.bootstrapBroadcast = daBootFix;
+       ec.linkTriggerOff = daLinkOff;
+       ec.beta_1 = 0.0;
+@@ -3483,6 +3601,11 @@
+       static_cast<dahello::LqarpConfig &> (ec) = cfg;
+       ec.skipInitialControlRound = (discMode == "heard"); // p4
+       ec.helloRxGate = helloRxGate;
++      // p15 A2.2(a) v2: FixedPeriodic (--hostSched=periodic / protocol=periodic) and
++      // energyRefreshS (qelar/saqr/marv -energy) take per-node U[0,T) when set.
++      // Default false = p14 lock-step. marv-T jitter is handled in MarvFwd.
++      ec.periodicJitter = periodicJitter;
++      ec.periodicJitterSeed = static_cast<uint64_t> (seed) * 0xD1B54A32D192ED03ull + 41ull;
+       ec.bootstrapBroadcast = daBootFix;
+       ec.linkTriggerOff = daLinkOff;
+       ec.beta_1 = 0.0;
+@@ -3563,6 +3686,11 @@
+       static_cast<dahello::LqarpConfig &> (ec) = cfg;
+       ec.skipInitialControlRound = (discMode == "heard"); // p4
+       ec.helloRxGate = helloRxGate;
++      // p15 A2.2(a) v2: FixedPeriodic (--hostSched=periodic / protocol=periodic) and
++      // energyRefreshS (qelar/saqr/marv -energy) take per-node U[0,T) when set.
++      // Default false = p14 lock-step. marv-T jitter is handled in MarvFwd.
++      ec.periodicJitter = periodicJitter;
++      ec.periodicJitterSeed = static_cast<uint64_t> (seed) * 0xD1B54A32D192ED03ull + 41ull;
+       ec.bootstrapBroadcast = daBootFix;
+       ec.linkTriggerOff = daLinkOff;
+       ec.beta_1 = 0.0;
+@@ -3630,6 +3758,11 @@
+       m->setAlive ([this] (uint32_t i) { return nodeAlive (i); });
+       marv = m.get ();
+       m->setAdaptiveSeed (seed * 7919u + 303u);
++      // A2.2(a) v2: marv-T uses MarvFwd per-node schedule; other arms use DahelloConfig::periodicJitter
++      // (FixedPeriodic / energyRefresh). No abort: flag is allowed on any arm (no-op if unused).
++      m->setPeriodicJitter (periodicJitter && ctrl == MarvFwd::Ctrl::Periodic,
++                            static_cast<uint64_t> (seed) * 0xD1B54A32D192ED03ull + 41ull);
++      m->setPollStored (pollStored);
+       if (ctrl == MarvFwd::Ctrl::Let && std::isfinite (letFrac))
+         {
+           NS_ABORT_MSG_IF (!(letFrac > 0.0 && letFrac < 1.0), "--letFrac (QLAR tau) must be in (0,1)");
+@@ -4790,9 +4923,53 @@
+     {
+       return;
+     }
++  if (helloOnlyHost)
++    {
++      ++rwMarvHdrSkipped; // p15 A2.2(b): no state from data headers
++      return;
++    }
++  ++rwMarvHdr;
+   marv->marv ().hear (k, i, V, voidFlag, e, Simulator::Now ().GetSeconds ());
+ }
+ 
++// p15: output-only neighbour-record write counters (A2.5 item 3) and jitter phases (item 2),
++// written to a separate file so the per-run report / stdout stay byte-identical to p14.
++void
++Pipeline::WriteRecWrites () const
++{
++  if (recWriteOut.empty ())
++    {
++      return;
++    }
++  std::ofstream f (recWriteOut);
++  f << std::setprecision (12);
++  f << "RECWRITES_BEGIN p15\n";
++  f << "switches periodicJitter=" << periodicJitter << " helloOnlyHost=" << helloOnlyHost
++    << " pollStored=" << pollStored << " sinkBeaconPhase=" << sinkBeaconPhase << " eddyCx=" << g_eddyCx
++    << " eddyCy=" << g_eddyCy << " eddyR=" << g_eddyR << "\n";
++  f << "decode_writes hello=" << rwDec[dahello::kFrameHello] << " beacon=" << rwDec[dahello::kFrameBeacon]
++    << " data=" << rwDec[dahello::kFrameData] << " ack=0 ack_decodes=" << rwAckDec << "\n";
++  f << "data_decodes_suppressed=" << rwDataSkipped << "\n";
++  f << "marv_header_writes=" << rwMarvHdr << " marv_header_suppressed=" << rwMarvHdrSkipped << "\n";
++  f << "cmp_table_writes ctrl=" << rwCmpCtrl << " data=" << rwCmpData << " data_suppressed=" << rwCmpDataSkipped << "\n";
++  if (marv)
++    {
++      f << "pollpair_writes live=" << marv->pollLiveW () << " stored=" << marv->pollStoredW ()
++        << " energy_live=" << marv->pollEnergyLiveW () << " energy_stored=" << marv->pollEnergyStoredW () << "\n";
++      f << "build_round_oracle_rx=" << marv->buildRoundRx () << " tCtrl=" << marv->tCtrl () << "\n";
++      if (marv->periodicJitter ())
++        {
++          const auto &off = marv->pjOffsets ();
++          const auto &fs = marv->pjFirstSend ();
++          for (size_t j = 0; j < off.size (); ++j)
++            {
++              f << "pj node=" << j << " offset=" << off[j] << " first_send=" << fs[j] << "\n";
++            }
++        }
++    }
++  f << "RECWRITES_END\n";
++}
++
+ void
+ Pipeline::MarvTransmit (Pkt pkt)
+ {
+@@ -7399,6 +7576,7 @@
+   const std::vector<Vector> pos0 = SamplePositions (nAuv, seed, rngRun);
+   dahello::EddyConfig eddy;
+   eddy.V = V;
++  eddy.cx = g_eddyCx; eddy.cy = g_eddyCy; eddy.R = g_eddyR; // p15 A2.2(c)
+ 
+   uint32_t nCore0 = 0;
+   uint32_t nOuter0 = 0;
+@@ -7841,6 +8019,7 @@
+   const std::vector<Vector> pos0 = SamplePositions (nAuv, seed, rngRun);
+   dahello::EddyConfig eddy;
+   eddy.V = V;
++  eddy.cx = g_eddyCx; eddy.cy = g_eddyCy; eddy.R = g_eddyR; // p15 A2.2(c)
+   dahello::GaussMarkovConfig gcfg;
+   gcfg.zeta = 0.95;
+   gcfg.dt = 1.0;
+@@ -8317,6 +8496,14 @@
+   cmd.AddValue ("lqarpPosDaMargin", "p6: rank margin m for --lqarpPosDa=2 (score units, default 0)", pipe.lqarpPosDaMargin);
+   cmd.AddValue ("tNb", "PORT A Gate 2: neighbour freshness T_nb (s), heard mode; if given, also applies to scheduler hosts (default there: no expiry)", pipe.tNbS);
+   cmd.AddValue ("sinkBeacon", "PORT A item 4: sink pose beacon period (s), medium on, all arms; 0 = off", pipe.sinkBeaconS);
++  cmd.AddValue ("periodicJitter", "p15 A2.2(a) v2: 1 = per-node phase U[0,T) for marv-T<s>, QELAR/SAQR energyRefresh, and --hostSched=periodic; 0 = p14", pipe.periodicJitter);
++  cmd.AddValue ("helloOnlyHost", "p15 A2.2(b): 1 = neighbour state written ONLY from HELLO/beacon decodes (forces --pollStored=1); 0 = p14", pipe.helloOnlyHost);
++  cmd.AddValue ("eddyCx", "p15 A2.2(c): eddy centre x (m), default 3000 = p14", g_eddyCx);
++  cmd.AddValue ("eddyCy", "p15 A2.2(c): eddy centre y (m), default 3000 = p14", g_eddyCy);
++  cmd.AddValue ("eddyR", "p15 A2.2(c): eddy core radius (m), default 2000 = p14", g_eddyR);
++  cmd.AddValue ("sinkBeaconPhase", "p15 A2.2(d): sink beacons at phase + sinkBeacon*k, k>=1 (s); default 0 = p14", pipe.sinkBeaconPhase);
++  cmd.AddValue ("pollStored", "p15 A2.2(c) v2: 1 = pollPair reads the stored neighbour record, not live V/void; 0 = p14 (campaign runners force 1 on scheduler arms)", pipe.pollStored);
++  cmd.AddValue ("recWriteOut", "p15: output-only neighbour-record write counter file (empty = not written)", pipe.recWriteOut);
+   cmd.AddValue ("poison", "PORT A Gate 2 (heard): nan | big (seeded +-1e9; differential test) | off", pipe.poisonMode);
+   cmd.AddValue ("poisonSeed", "PORT A Gate 2: seed of the +-1e9 poison pattern", pipe.poisonSeed);
+   // p3 (amend1 A6(d)): evaluation-seed guard. Defaults leave non-eval runs unchanged.
+@@ -8336,6 +8523,15 @@
+         }
+     }
+   cmd.Parse (argc, argv);
++  NS_ABORT_MSG_IF (pipe.helloOnlyHost && pipe.discMode != "heard", "--helloOnlyHost=1 needs --disc=heard");
++  if (pipe.helloOnlyHost)
++    {
++      pipe.pollStored = true; // A2.2(e): --helloOnlyHost=1 forces --pollStored=1
++    }
++  NS_ABORT_MSG_IF (!(g_eddyR > 0.0) || !std::isfinite (g_eddyCx) || !std::isfinite (g_eddyCy),
++                   "--eddyR must be > 0 and --eddyCx/--eddyCy finite");
++  NS_ABORT_MSG_IF (!(pipe.sinkBeaconPhase >= 0.0) || (pipe.sinkBeaconS > 0.0 && !(pipe.sinkBeaconPhase < pipe.sinkBeaconS)),
++                   "--sinkBeaconPhase must be in [0, sinkBeacon)");
+ 
+   if (pipe.protoName == "lqarp" || pipe.protoName == "lqarp-refreshed")
+     {
+@@ -8464,6 +8660,7 @@
+   Simulator::Stop (Seconds (pipe.tSim + pipe.drainS + 1.0));
+   Simulator::Run ();
+   pipe.WriteReport ();
++  pipe.WriteRecWrites ();
+   Simulator::Destroy ();
+   return 0;
+ }

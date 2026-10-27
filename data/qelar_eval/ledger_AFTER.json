@@ -1,0 +1,41 @@
+{
+  "authority": "Ali t151u A2.12",
+  "cst": "2026-10-23 16:46:15 CST",
+  "event": "t109_AFTER",
+  "phase1": {
+    "ok": 80,
+    "fail": 0,
+    "skip": 0,
+    "total_jobs": 80,
+    "elapsed_s": 337.868940114975,
+    "workers": 6,
+    "jobs_file": "/workspace/out/t109_p18_20261023/phase1_jobs.json"
+  },
+  "phase2": {
+    "ok": 1440,
+    "fail": 0,
+    "skip": 0,
+    "total_jobs": 1440,
+    "elapsed_s": 6054.024715900421,
+    "workers": 6,
+    "jobs_file": "/workspace/out/t109_p18_20261023/phase2_jobs.json"
+  },
+  "phase1_decision": {
+    "chosen_arm": "da_m10",
+    "chosen_margin": 10.0,
+    "pooled_loss_pp": 0.5716056980000004,
+    "gate_5pp_pass": true
+  },
+  "p17_exe_sha256_intact": "6305cb60f7814a3a6dcdde3c8d63ce89481d26e47d12523307d4cb8aacb0bf99",
+  "p18_exe_sha256": "c57ce18e9a580655818bf06e9ecab73cefcbdb870e7d2e5f41eeb55581152f56",
+  "p18_vs_p17_diff_sha256": "bdb49d5e253871277a36e40bea70ab45df3272140c0a3306fc06ca42d7c38ddd",
+  "phase2_jobs_sha256": "7d2823cf83c941e176ba6875b0ab5869c4a3bc581fa289558e3427fba2aa355a",
+  "report": "/workspace/out/t109_p18_20261023/t109_report.md",
+  "fail_frac_phase2": 0.0,
+  "note": "Phase2 1440/1440 ok. A2.12.4 numeric only. No verdicts. p14-p17 untouched.",
+  "run": false,
+  "set": "complete (A2.12 t109)",
+  "zip": "/workspace/out/t109_p18_20261023.zip",
+  "zip_sha256": "caafbac1f510fd7a2183ef53e789e5f2b8c6658d38c67005af49eaf4f953b119",
+  "report_sha256": "d9213b3e2b33263092ebf2d5fa16f59ee840c760243fda3df5bb0d8bd2198899"
+}

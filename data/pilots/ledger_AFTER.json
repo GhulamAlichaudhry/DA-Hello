@@ -1,0 +1,54 @@
+{
+  "cst": "2026-10-23 09:19:14 CST",
+  "event": "t105_AFTER",
+  "authority": "Ali t142u A2.8 signed; t105",
+  "ok": 180,
+  "fail": 0,
+  "skip": 0,
+  "total": 180,
+  "elapsed_s": 404.5174882411957,
+  "workers": 6,
+  "seeds": [
+    20261114,
+    20261115,
+    20261116,
+    20261117,
+    20261118
+  ],
+  "set": "tuning",
+  "eval_seeds_used": false,
+  "binary_sha256": "e66b8970b6d4ad91cbe939b77b0ba2fb10e21521d68e08f4853fefee4dff7396",
+  "lib_sha256": "ad9cc623ee99eb44def7b243bf1b62e3954364b4f213ac486e7ff1ead3f24395",
+  "jobs.jsonl_sha256": "fd775c5b0519f1b3ed28afa0844989d71fa28c2b3409e416b43a6c400e8bb521",
+  "report": "/workspace/out/t105_hosts_20261023/t105_report.md",
+  "report_sha256": "3263ee3aa3ad5ccbe94413580bd5acc2c224f156d85a567581d4e139d2ed008a",
+  "zip": "/workspace/out/t105_hosts_20261023.zip",
+  "zip_sha256": "0d6548131259a5a1cc74baee755ab2b95a252d6ee0679bdf8b7b354f1ac45d23",
+  "run_txt_SHA256SUMS_sha256": "618f2641132403e02ac93a6d2df4f22b28b60a953df68d06eb073adad23d3f1d",
+  "ii_host_alone_wpdr": {
+    "QELAR_alone": {
+      "n": 5,
+      "mean": 0.38504416316,
+      "lo": 0.32553044463889586,
+      "hi": 0.44455788168110416,
+      "sd": 0.047938299786375066
+    },
+    "SAQR_alone": {
+      "n": 5,
+      "mean": 0.07849970884,
+      "lo": 0.01286759669257008,
+      "hi": 0.14413182098742994,
+      "sd": 0.05286666580278927
+    },
+    "LQARP_lqarp": {
+      "n": 5,
+      "mean": 0.28000529556,
+      "lo": 0.1859546631215725,
+      "hi": 0.37405592799842746,
+      "sd": 0.07575778366684821
+    },
+    "threshold_numeric": 0.3
+  },
+  "zero_delivery_saqr_lqarp_n": 24,
+  "note": "Numbers only; no viable/pass/fail in report. linkOff=1 on all jobs. eval flags omitted."
+}

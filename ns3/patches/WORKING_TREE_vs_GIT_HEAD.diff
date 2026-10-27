@@ -1,0 +1,1015 @@
+diff --git a/examples/scenario-i-lqarp.cc b/examples/scenario-i-lqarp.cc
+index 0d257cb..1ec7202 100644
+--- a/examples/scenario-i-lqarp.cc
++++ b/examples/scenario-i-lqarp.cc
+@@ -229,6 +229,17 @@ public:
+   virtual uint32_t advertisedNumber (uint32_t) const { return 0; }
+   // p6: i's held record of j for the LQARP position-aware DA test (LQARP host only).
+   virtual bool peekHeld (uint32_t, uint32_t, dahello::LqarpProtocol::HeldView &) const { return false; }
++  // A2.9 hostFidelity=1 QELAR: paper allows backtracking to previous hop (MaxHops loop guard).
++  virtual bool allowPrevHopRevisit () const { return false; }
++  // A2.11: ever-heard bit for first-contact known-sender (QELAR under --qelarDaFix).
++  virtual bool everHeard (uint32_t, uint32_t) const { return false; }
++  virtual uint32_t heardCount (uint32_t) const { return 0; }
++  virtual void noteOwnCtrlTx (uint32_t) {}
++  // A2.11 QELAR DA event counters (0 unless --qelarDaFix path armed).
++  virtual uint64_t daMemEvents () const { return 0; }
++  virtual uint64_t daRankEvents () const { return 0; }
++  virtual uint64_t daRefreshEvents () const { return 0; }
++  virtual double daActiveMargin () const { return std::numeric_limits<double>::quiet_NaN (); }
+ };
+ 
+ class LqarpFwd : public Fwd
+@@ -626,6 +637,10 @@ public:
+     if (sched_)
+       {
+         sched_->tick (dt);
++        if (daMode_ > 0)
++          {
++            afterDaTick ();
++          }
+       }
+   }
+   bool wantsTick () const override { return hello_ != Hello::Off; }
+@@ -678,9 +693,10 @@ public:
+   const dahello::DahelloProtocol *scheduler () const override { return sched_.get (); }
+   void setCtrlTxHook (std::function<void (uint32_t, int)> h) override
+   {
++    ctrlHook_ = std::move (h);
+     if (sched_)
+       {
+-        sched_->setTxHook (std::move (h));
++        sched_->setTxHook (ctrlHook_);
+       }
+   }
+   void setHeardOnly (bool on) override
+@@ -725,10 +741,200 @@ public:
+         sched_->applyHeardHold (i, j, t, x, y, z, vx, vy, vz, energy, snrDb, number, V);
+       }
+   }
++  bool allowPrevHopRevisit () const override { return p_.config ().hostFidelity; }
++
++  // A2.9 --hostSched=da (fidelity=1 only): membership = void(empty cand) flip with
++  // upstream; rank = DA-HELLO host-score gap sign change (margin m). Score =
++  // e/E_ini + 0.01*nb + gamma*V (host_verification host DA-HELLO score class).
++  // A2.11 --qelarDaFix=1: honour CLI margin/imin/doublings/refresh; export mem/rank/fc/refresh.
++  void enableHostDa (int mode, double margin, double imin, int doublings, double tNb,
++                     double refresh = 0.0)
++  {
++    daMode_ = mode;
++    daMargin_ = margin;
++    daImin_ = imin;
++    daImax_ = imin * std::ldexp (1.0, doublings);
++    daTnb_ = tNb;
++    daRefresh_ = refresh;
++    const size_t n = p_.nodes ().size ();
++    vLast_.assign (n, 0.0);
++    voidLast_.assign (n, 0);
++    eLast_.assign (n, p_.config ().eIni);
++    nbLast_.assign (n, 0);
++    daI_.assign (n, daImin_);
++    daHold_.assign (n, -1.0);
++    pendCause_.assign (n, 0);
++    lastHello_.assign (n, -1.0);
++    memEv_ = rankEv_ = refreshEv_ = 0;
++    if (sched_ && daMode_ > 0)
++      {
++        sched_->setStateDirtyHook ([this] (uint32_t j) { return stateDirtyFire (j); });
++      }
++  }
++  bool everHeard (uint32_t i, uint32_t j) const override { return p_.everHeard (i, j); }
++  uint32_t heardCount (uint32_t i) const override { return p_.heardCount (i); }
++  void noteOwnCtrlTx (uint32_t j) override
++  {
++    if (j < lastHello_.size ())
++      {
++        lastHello_[j] = Simulator::Now ().GetSeconds ();
++      }
++  }
++  uint64_t daMemEvents () const override { return memEv_; }
++  uint64_t daRankEvents () const override { return rankEv_; }
++  uint64_t daRefreshEvents () const override { return refreshEv_; }
++  double daActiveMargin () const override { return daMode_ > 0 ? daMargin_ : std::numeric_limits<double>::quiet_NaN (); }
+ 
+ private:
++  double hostScore (double e, uint32_t nb, double V) const
++  {
++    const double eIni = p_.config ().eIni;
++    return (eIni > 0.0 ? e / eIni : 0.0) + 0.01 * static_cast<double> (nb) + p_.config ().gamma * V;
++  }
++  bool isVoidNode (uint32_t j) const { return p_.candidateSet (j).empty (); }
++  int daFire (uint32_t j)
++  {
++    if (!sched_ || j >= p_.nodes ().size ()) return 0;
++    const double now = Simulator::Now ().GetSeconds ();
++    const uint32_t n = static_cast<uint32_t> (p_.nodes ().size ());
++    const auto &nj = p_.nodes ()[j];
++    bool up = false;
++    double zUpMax = -1e300;
++    for (uint32_t i = 0; i < n; ++i)
++      {
++        if (i == j) continue;
++        if (heard_ && !p_.fresh (j, i)) continue;
++        dahello::FilterPeek pk;
++        double zi = nj.z;
++        if (sched_->peekFilter (j, i, pk) && pk.heard && std::isfinite (pk.heldZ))
++          {
++            zi = pk.heldZ;
++          }
++        else if (!sched_->zohHeard (j, i))
++          {
++            continue;
++          }
++        if (zi > nj.z)
++          {
++            up = true;
++            zUpMax = std::max (zUpMax, zi);
++          }
++      }
++    const bool voidNow = isVoidNode (j);
++    const bool voidFlip = (voidNow ? 1 : 0) != voidLast_[j];
++    if (!up) return 0;
++    if (voidFlip)
++      {
++        daI_[j] = daImin_;
++        daHold_[j] = now + daI_[j];
++        return 1;
++      }
++    if (voidNow) return 0;
++    const uint32_t nb = static_cast<uint32_t> (p_.candidateSet (j).size ());
++    const double sAdv = hostScore (eLast_[j], nbLast_[j], vLast_[j]);
++    const double sNow = hostScore (p_.energy (j), nb, p_.ownV (j));
++    if (sAdv == sNow) return 0;
++    bool flip = false;
++    for (uint32_t k = 0; k < n && !flip; ++k)
++      {
++        if (k == j) continue;
++        if (heard_ && !p_.fresh (j, k)) continue;
++        dahello::FilterPeek pk;
++        if (!sched_->peekFilter (j, k, pk) || !pk.heard) continue;
++        if (!(pk.heldZ < zUpMax)) continue;
++        const double Vk = std::isfinite (pk.heldE) ? 0.0 : 0.0; // V from host hold below
++        (void)Vk;
++        // Peer score from held energy + number; V unknown on Dahello FilterPeek → 0
++        const double ek = std::isfinite (pk.heldE) ? pk.heldE : p_.config ().eIni;
++        const double sk = hostScore (ek, 0u, 0.0);
++        const double gA = sAdv - sk, gN = sNow - sk;
++        if ((gA > 0.0) != (gN > 0.0) && std::fabs (gN) >= daMargin_) flip = true;
++      }
++    if (!flip) return 0;
++    if (daMode_ == 2)
++      {
++        if (now + 1e-9 < daHold_[j]) return 0;
++        daI_[j] = std::min (2.0 * daI_[j], daImax_);
++        daHold_[j] = now + daI_[j];
++      }
++    return 2;
++  }
++  bool stateDirtyFire (uint32_t j)
++  {
++    if (daMode_ <= 0) return false;
++    const int d = daFire (j);
++    if (j < pendCause_.size ()) pendCause_[j] = d;
++    return d != 0;
++  }
++  void noteStateSent (uint32_t j)
++  {
++    if (j >= vLast_.size ()) return;
++    vLast_[j] = p_.ownV (j);
++    voidLast_[j] = isVoidNode (j) ? 1 : 0;
++    eLast_[j] = p_.energy (j);
++    nbLast_[j] = static_cast<uint32_t> (p_.candidateSet (j).size ());
++  }
++  void afterDaTick ()
++  {
++    if (!sched_) return;
++    const double now = Simulator::Now ().GetSeconds ();
++    const uint32_t n = static_cast<uint32_t> (p_.nodes ().size ());
++    for (uint32_t j = 0; j < n; ++j)
++      {
++        if (sched_->linkFiredLastTick (j) || sched_->hostFiredLastTick (j))
++          {
++            if (sched_->hostFiredLastTick (j) && j < pendCause_.size ())
++              {
++                if (pendCause_[j] == 1)
++                  {
++                    ++memEv_;
++                  }
++                else if (pendCause_[j] == 2)
++                  {
++                    ++rankEv_;
++                  }
++              }
++            noteStateSent (j);
++            if (j < lastHello_.size ())
++              {
++                lastHello_[j] = now;
++              }
++          }
++      }
++    // A2.11: honour --daRefresh (HELLO with cause 9), same spirit as MARV P refresh.
++    if (daRefresh_ > 0.0 && ctrlHook_)
++      {
++        for (uint32_t j = 0; j < n; ++j)
++          {
++            if (sched_->linkFiredLastTick (j) || sched_->hostFiredLastTick (j))
++              {
++                continue;
++              }
++            if (!(j < lastHello_.size ()) || lastHello_[j] < 0.0)
++              {
++                continue;
++              }
++            if (now - lastHello_[j] + 1e-9 < daRefresh_)
++              {
++                continue;
++              }
++            ctrlHook_ (j, 9);
++            ++refreshEv_;
++            lastHello_[j] = now;
++            noteStateSent (j);
++          }
++      }
++  }
++
+   std::string label_;
+   Hello hello_;
++  int daMode_ = 0;
++  double daMargin_ = 0.0, daImin_ = 10.0, daImax_ = 320.0, daTnb_ = 3600.0, daRefresh_ = 0.0;
++  mutable std::vector<double> vLast_, eLast_, daI_, daHold_, lastHello_;
++  mutable std::vector<uint32_t> nbLast_;
++  mutable std::vector<int> voidLast_, pendCause_;
++  std::function<void (uint32_t, int)> ctrlHook_;
++  uint64_t memEv_ = 0, rankEv_ = 0, refreshEv_ = 0;
+ };
+ 
+ class SaqrFwd : public Fwd
+@@ -819,6 +1025,10 @@ public:
+     if (sched_)
+       {
+         sched_->tick (dt);
++        if (daMode_ > 0)
++          {
++            afterDaTick ();
++          }
+       }
+   }
+   bool wantsTick () const override { return hello_ != Hello::Off; }
+@@ -914,11 +1124,119 @@ public:
+       }
+   }
+ 
++  // A2.9 --hostSched=da (fidelity=1): same membership/rank pattern as QelarFwd.
++  void enableHostDa (int mode, double margin, double imin, int doublings, double tNb)
++  {
++    daMode_ = mode;
++    daMargin_ = margin;
++    daImin_ = imin;
++    daImax_ = imin * std::ldexp (1.0, doublings);
++    daTnb_ = tNb;
++    const size_t n = p_.nodes ().size ();
++    vLast_.assign (n, 0.0);
++    voidLast_.assign (n, 0);
++    eLast_.assign (n, p_.config ().eIni);
++    nbLast_.assign (n, 0);
++    daI_.assign (n, daImin_);
++    daHold_.assign (n, -1.0);
++    pendCause_.assign (n, 0);
++    if (sched_ && daMode_ > 0)
++      {
++        sched_->setStateDirtyHook ([this] (uint32_t j) { return stateDirtyFire (j); });
++      }
++  }
++
+ private:
++  double hostScore (double e, uint32_t nb, double V) const
++  {
++    const double eIni = p_.config ().eIni;
++    return (eIni > 0.0 ? e / eIni : 0.0) + 0.01 * static_cast<double> (nb) + p_.config ().gamma * V;
++  }
++  bool isVoidNode (uint32_t j) const { return p_.candidateSet (j).empty (); }
++  int daFire (uint32_t j)
++  {
++    if (!sched_ || j >= p_.nodes ().size ()) return 0;
++    const double now = Simulator::Now ().GetSeconds ();
++    const uint32_t n = static_cast<uint32_t> (p_.nodes ().size ());
++    const auto &nj = p_.nodes ()[j];
++    bool up = false;
++    double zUpMax = -1e300;
++    for (uint32_t i = 0; i < n; ++i)
++      {
++        if (i == j) continue;
++        if (heard_ && !p_.fresh (j, i)) continue;
++        dahello::FilterPeek pk;
++        double zi = nj.z;
++        if (sched_->peekFilter (j, i, pk) && pk.heard && std::isfinite (pk.heldZ))
++          zi = pk.heldZ;
++        else if (!sched_->zohHeard (j, i))
++          continue;
++        if (zi > nj.z) { up = true; zUpMax = std::max (zUpMax, zi); }
++      }
++    const bool voidNow = isVoidNode (j);
++    const bool voidFlip = (voidNow ? 1 : 0) != voidLast_[j];
++    if (!up) return 0;
++    if (voidFlip) { daI_[j] = daImin_; daHold_[j] = now + daI_[j]; return 1; }
++    if (voidNow) return 0;
++    const uint32_t nb = static_cast<uint32_t> (p_.candidateSet (j).size ());
++    const double sAdv = hostScore (eLast_[j], nbLast_[j], vLast_[j]);
++    const double sNow = hostScore (p_.energy (j), nb, p_.ownV (j));
++    if (sAdv == sNow) return 0;
++    bool flip = false;
++    for (uint32_t k = 0; k < n && !flip; ++k)
++      {
++        if (k == j) continue;
++        if (heard_ && !p_.fresh (j, k)) continue;
++        dahello::FilterPeek pk;
++        if (!sched_->peekFilter (j, k, pk) || !pk.heard) continue;
++        if (!(pk.heldZ < zUpMax)) continue;
++        const double ek = std::isfinite (pk.heldE) ? pk.heldE : p_.config ().eIni;
++        const double sk = hostScore (ek, 0u, 0.0);
++        const double gA = sAdv - sk, gN = sNow - sk;
++        if ((gA > 0.0) != (gN > 0.0) && std::fabs (gN) >= daMargin_) flip = true;
++      }
++    if (!flip) return 0;
++    if (daMode_ == 2)
++      {
++        if (now + 1e-9 < daHold_[j]) return 0;
++        daI_[j] = std::min (2.0 * daI_[j], daImax_);
++        daHold_[j] = now + daI_[j];
++      }
++    return 2;
++  }
++  bool stateDirtyFire (uint32_t j)
++  {
++    if (daMode_ <= 0) return false;
++    const int d = daFire (j);
++    if (j < pendCause_.size ()) pendCause_[j] = d;
++    return d != 0;
++  }
++  void noteStateSent (uint32_t j)
++  {
++    if (j >= vLast_.size ()) return;
++    vLast_[j] = p_.ownV (j);
++    voidLast_[j] = isVoidNode (j) ? 1 : 0;
++    eLast_[j] = p_.energy (j);
++    nbLast_[j] = static_cast<uint32_t> (p_.candidateSet (j).size ());
++  }
++  void afterDaTick ()
++  {
++    if (!sched_) return;
++    const uint32_t n = static_cast<uint32_t> (p_.nodes ().size ());
++    for (uint32_t j = 0; j < n; ++j)
++      if (sched_->linkFiredLastTick (j) || sched_->hostFiredLastTick (j))
++        noteStateSent (j);
++  }
++
+   dahello::SaqrProtocol p_;
+   std::unique_ptr<dahello::DahelloProtocol> sched_;
+   std::string label_;
+   Hello hello_;
++  int daMode_ = 0;
++  double daMargin_ = 0.0, daImin_ = 10.0, daImax_ = 320.0, daTnb_ = 3600.0;
++  mutable std::vector<double> vLast_, eLast_, daI_, daHold_;
++  mutable std::vector<uint32_t> nbLast_;
++  mutable std::vector<int> voidLast_, pendCause_;
+ };
+ 
+ // MARV host adapter. Neighbour geometry is the binary's (range only,
+@@ -2396,6 +2714,7 @@ struct Pipeline
+   double letFloor = std::numeric_limits<double>::quiet_NaN ();     // p2: opt-in LET interval floor (s); NaN = off
+   int lifetimeOut = 0;                                             // p2: 1 = print output-only LIFETIME_PROJ line
+   double naiveRefresh = std::numeric_limits<double>::quiet_NaN (); // t23: naivevoid refresh (s)
++  int hostFidelity = 0;               // A2.9: 0 = p15v2-identical; 1 = paper fixes + hostSched=da
+   std::string hostSched = "off";      // PORT A: QELAR/SAQR baseline HELLO schedule
+   std::string discMode = "oracle";   // oracle (legacy) | heard (Gate 2; requires medium)
+   int leakTest = 0;                  // 0 off; 1..4 planted leaks (must exit 3)
+@@ -2446,6 +2765,10 @@ struct Pipeline
+   // p15 Amendment 2 A2.2 switches (all default to p14 behaviour)
+   bool periodicJitter = false;       // (a) marv-T<s>: per-node phase U[0,T)
+   bool helloOnlyHost = false;        // (b) neighbour state only from HELLO/beacon decodes
++  // A2.11: QELAR-only switches (default OFF => p17 bit-identical to p16 when unset)
++  bool qelarDaFix = false;           // honour CLI DA params + allocate FC + export mem/rank/fc/refresh
++  bool qelarHelloOnly = false;       // data headers carry no neighbour attrs; HELLO/beacon only
++  bool qelarDaFc = true;             // A2.12: with qelarDaFix, 1=allocate FC (p17); 0=no FC reply
+   double sinkBeaconPhase = 0.0;      // (d) beacons at phase + sinkBeaconS*k, k >= 1
+   bool pollStored = false;           // (e) pollPair reads the stored record
+   std::string recWriteOut;           // output-only counter file (empty = none)
+@@ -3336,10 +3659,13 @@ Pipeline::BuildProtocol ()
+     }
+   if (protoName == "lqarp")
+     {
++      // A2.9: hostFidelity=1 sets gamma=0.95 inside LqarpProtocol ctor.
++      cfg.hostFidelity = (hostFidelity != 0);
+       proto = std::make_unique<LqarpFwd> (*gate, cfg, ln);
+     }
+   else if (protoName == "lqarp-refreshed")
+     {
++      cfg.hostFidelity = (hostFidelity != 0);
+       cfg.holdRefreshS = 5.0;
+       proto = std::make_unique<LqarpFwd> (*gate, cfg, ln, "lqarp-refreshed");
+       std::cout << "LQARP-refreshed: held pose/energy on T_ctrl=" << cfg.holdRefreshS
+@@ -3535,6 +3861,14 @@ Pipeline::BuildProtocol ()
+       dahello::QelarConfig qc;
+       qc.eIni = cfg.eIni;
+       qc.rRangeM = cfg.rRangeM;
++      // A2.9: hostFidelity=0 keeps p15v2 behaviour; =1 enables paper SNR cut + prev-hop.
++      qc.hostFidelity = (hostFidelity != 0);
++      qc.beta1 = 0.5;
++      qc.beta2 = 0.05;
++      if (gate)
++        {
++          qc.snrThresholdDb = gate->snrThresholdDb ();
++        }
+       dahello::DahelloConfig ec;
+       static_cast<dahello::LqarpConfig &> (ec) = cfg;
+       ec.skipInitialControlRound = (discMode == "heard"); // p4
+@@ -3550,6 +3884,7 @@ Pipeline::BuildProtocol ()
+       ec.beta_2 = 0.0;
+       ec.broadcastMode = dahello::BroadcastMode::EventTriggered;
+       QelarFwd::Hello hello = QelarFwd::Hello::Off;
++      bool hostDa = false;
+       if (protoName == "qelar-hello")
+         {
+           hello = QelarFwd::Hello::Pose;
+@@ -3561,34 +3896,72 @@ Pipeline::BuildProtocol ()
+           ec.energyQuantBits = energyQuantBits;
+           ec.energyAddrBits = energyAddrBits;
+         }
+-      // PORT A (2026-10-12): baseline HELLO schedules on QELAR/SAQR hosts
+-      // (--hostSched=periodic|trickle|speedadapt; default off = legacy behaviour).
++      // PORT A: --hostSched=periodic|trickle|speedadapt; A2.9 adds =da (fidelity=1 only).
+       if ((protoName == "qelar") && hostSched != "off")
+         {
+-          NS_ABORT_MSG_IF (hostSched != "periodic" && hostSched != "trickle" && hostSched != "speedadapt",
+-                           "--hostSched must be off|periodic|trickle|speedadapt");
+-          hello = QelarFwd::Hello::Pose;
+-          if (hostSched == "periodic")
++          if (hostSched == "da")
+             {
+-              ec.broadcastMode = dahello::BroadcastMode::FixedPeriodic;
+-              if (std::isfinite (tCtrl))
+-                {
+-                  NS_ABORT_MSG_IF (!(tCtrl > 0.0), "--tCtrl must be > 0");
+-                  ec.T_ctrl = tCtrl;
+-                }
++              NS_ABORT_MSG_IF (hostFidelity == 0,
++                               "--hostSched=da requires --hostFidelity=1 (A2.9)");
++              hostDa = true;
++              hello = QelarFwd::Hello::Pose;
++              ec.broadcastMode = dahello::BroadcastMode::EventTriggered;
++              // First-contact reply (MARV piggyback P* uses --bootFix=1).
++              ec.bootstrapBroadcast = true;
++              ec.linkTriggerOff = true; // DA-only; no Kalman link HELLO
+             }
+           else
+             {
+-              ec.broadcastMode = dahello::BroadcastMode::Adaptive;
+-              ec.adaptiveScheme = (hostSched == "trickle") ? 1 : 2;
+-              ec.adaptiveSeed = seed * 7919u + 303u;
++              NS_ABORT_MSG_IF (hostSched != "periodic" && hostSched != "trickle" && hostSched != "speedadapt",
++                               "--hostSched must be off|periodic|trickle|speedadapt|da");
++              hello = QelarFwd::Hello::Pose;
++              if (hostSched == "periodic")
++                {
++                  ec.broadcastMode = dahello::BroadcastMode::FixedPeriodic;
++                  if (std::isfinite (tCtrl))
++                    {
++                      NS_ABORT_MSG_IF (!(tCtrl > 0.0), "--tCtrl must be > 0");
++                      ec.T_ctrl = tCtrl;
++                    }
++                }
++              else
++                {
++                  ec.broadcastMode = dahello::BroadcastMode::Adaptive;
++                  ec.adaptiveScheme = (hostSched == "trickle") ? 1 : 2;
++                  ec.adaptiveSeed = seed * 7919u + 303u;
++                }
+             }
+         }
+       auto q = std::make_unique<QelarFwd> (*gate, qc, ln, protoName, hello, ec);
+       q->setSink (sinkId);
++      if (hostDa)
++        {
++          if (qelarDaFix)
++            {
++              // A2.11: honour CLI --daMargin/--daImin/--daDoublings/--daRefresh.
++              q->enableHostDa (2, daMargin, daImin, daDoublings, tNbS, daRefresh);
++              // A2.12: FC reply only when --qelarDaFc=1 (default); =0 => mem/rank/refresh only.
++              fcOn = qelarDaFc;
++            }
++          else
++            {
++              // A2.9.1 item 3 / Gate1: p16 hard-coded path (CLI --daMargin ignored).
++              q->enableHostDa (2, 0.02, 10.0, 5, tNbS);
++              fcOn = true; // p16: fcOn set but fcSt never allocated => fc_reply=0
++            }
++        }
++      if (qelarHelloOnly)
++        {
++          NS_ABORT_MSG_IF (hostFidelity == 0, "--qelarHelloOnly=1 requires --hostFidelity=1 (A2.11)");
++        }
+       proto = std::move (q);
+       std::cout << "QELAR (TMC 2010): model-based, gamma=0.5, g=1, alpha1=0.5, alpha2=0.05, "
+-                << "failure branch off, acoustic range only, hello=" << protoName << "\n";
++                << "failure branch off, acoustic range only, hello=" << protoName
++                << " hostFidelity=" << hostFidelity
++                << (hostDa ? " hostSched=da" : "")
++                << (qelarDaFix ? " qelarDaFix=1" : "")
++                << (qelarHelloOnly ? " qelarHelloOnly=1" : "")
++                << ((qelarDaFix && !qelarDaFc) ? " qelarDaFc=0" : "") << "\n";
+     }
+   else if (protoName == "saqr" || protoName == "saqr-hello" || protoName == "saqr-hello-energy")
+     {
+@@ -3597,6 +3970,11 @@ Pipeline::BuildProtocol ()
+       sc.rRangeM = cfg.rRangeM;
+       sc.packetBits = cfg.packetBits;
+       sc.rngSeed = seed;
++      // A2.9: hostFidelity=1 switches epsilon by warmS (900 s) instead of decision count.
++      sc.hostFidelity = (hostFidelity != 0);
++      sc.warmS = 900.0;
++      sc.holdK = 3.2;
++      sc.qMinInit = 1.0;
+       dahello::DahelloConfig ec;
+       static_cast<dahello::LqarpConfig &> (ec) = cfg;
+       ec.skipInitialControlRound = (discMode == "heard"); // p4
+@@ -3612,6 +3990,7 @@ Pipeline::BuildProtocol ()
+       ec.beta_2 = 0.0;
+       ec.broadcastMode = dahello::BroadcastMode::EventTriggered;
+       SaqrFwd::Hello hello = SaqrFwd::Hello::Off;
++      bool hostDa = false;
+       if (protoName == "saqr-hello")
+         {
+           hello = SaqrFwd::Hello::Pose;
+@@ -3623,35 +4002,55 @@ Pipeline::BuildProtocol ()
+           ec.energyQuantBits = energyQuantBits;
+           ec.energyAddrBits = energyAddrBits;
+         }
+-      // PORT A (2026-10-12): baseline HELLO schedules on QELAR/SAQR hosts
+-      // (--hostSched=periodic|trickle|speedadapt; default off = legacy behaviour).
++      // PORT A: --hostSched=periodic|trickle|speedadapt; A2.9 adds =da (fidelity=1 only).
+       if ((protoName == "saqr") && hostSched != "off")
+         {
+-          NS_ABORT_MSG_IF (hostSched != "periodic" && hostSched != "trickle" && hostSched != "speedadapt",
+-                           "--hostSched must be off|periodic|trickle|speedadapt");
+-          hello = SaqrFwd::Hello::Pose;
+-          if (hostSched == "periodic")
++          if (hostSched == "da")
+             {
+-              ec.broadcastMode = dahello::BroadcastMode::FixedPeriodic;
+-              if (std::isfinite (tCtrl))
+-                {
+-                  NS_ABORT_MSG_IF (!(tCtrl > 0.0), "--tCtrl must be > 0");
+-                  ec.T_ctrl = tCtrl;
+-                }
++              NS_ABORT_MSG_IF (hostFidelity == 0,
++                               "--hostSched=da requires --hostFidelity=1 (A2.9)");
++              hostDa = true;
++              hello = SaqrFwd::Hello::Pose;
++              ec.broadcastMode = dahello::BroadcastMode::EventTriggered;
++              ec.bootstrapBroadcast = true;
++              ec.linkTriggerOff = true;
+             }
+           else
+             {
+-              ec.broadcastMode = dahello::BroadcastMode::Adaptive;
+-              ec.adaptiveScheme = (hostSched == "trickle") ? 1 : 2;
+-              ec.adaptiveSeed = seed * 7919u + 303u;
++              NS_ABORT_MSG_IF (hostSched != "periodic" && hostSched != "trickle" && hostSched != "speedadapt",
++                               "--hostSched must be off|periodic|trickle|speedadapt|da");
++              hello = SaqrFwd::Hello::Pose;
++              if (hostSched == "periodic")
++                {
++                  ec.broadcastMode = dahello::BroadcastMode::FixedPeriodic;
++                  if (std::isfinite (tCtrl))
++                    {
++                      NS_ABORT_MSG_IF (!(tCtrl > 0.0), "--tCtrl must be > 0");
++                      ec.T_ctrl = tCtrl;
++                    }
++                }
++              else
++                {
++                  ec.broadcastMode = dahello::BroadcastMode::Adaptive;
++                  ec.adaptiveScheme = (hostSched == "trickle") ? 1 : 2;
++                  ec.adaptiveSeed = seed * 7919u + 303u;
++                }
+             }
+         }
+       auto s = std::make_unique<SaqrFwd> (*gate, sc, ln, protoName, hello, ec);
+       s->setSink (sinkId);
++      if (hostDa)
++        {
++          s->enableHostDa (2, 0.02, 10.0, 5, tNbS);
++          fcOn = true;
++        }
+       proto = std::move (s);
+       std::cout << "SAQR (Computer Networks 2025): Service A 0.7/0.1/0.1/0.1, alpha=0.1, "
+-                << "gamma=0.8, epsilon 0.5 then 0.01 after 20 decisions, "
+-                << "min-max star, delay=prop+airtime, hello=" << protoName << "\n";
++                << "gamma=0.8, epsilon "
++                << (hostFidelity ? "0.5 during warm then 0.01" : "0.5 then 0.01 after 20 decisions")
++                << ", min-max star, delay=prop+airtime, hello=" << protoName
++                << " hostFidelity=" << hostFidelity
++                << (hostDa ? " hostSched=da" : "") << "\n";
+     }
+   else if (protoName.compare (0, 5, "marv-") == 0)
+     {
+@@ -4645,7 +5044,10 @@ Pipeline::Forward (Pkt pkt)
+   }
+   for (uint32_t j : candRaw)
+     {
+-      if (!dahello::LqarpProtocol::containsId (pkt.visited, j) && (discMode == "heard" || nodeAlive (j)))
++      const bool prevOk = proto->allowPrevHopRevisit () && pkt.prevSender >= 0
++                          && j == static_cast<uint32_t> (pkt.prevSender);
++      if ((!dahello::LqarpProtocol::containsId (pkt.visited, j) || prevOk)
++          && (discMode == "heard" || nodeAlive (j)))
+         {
+           I.push_back (j);
+         }
+@@ -4945,6 +5347,7 @@ Pipeline::WriteRecWrites () const
+   f << std::setprecision (12);
+   f << "RECWRITES_BEGIN p15\n";
+   f << "switches periodicJitter=" << periodicJitter << " helloOnlyHost=" << helloOnlyHost
++    << " qelarDaFix=" << qelarDaFix << " qelarHelloOnly=" << qelarHelloOnly
+     << " pollStored=" << pollStored << " sinkBeaconPhase=" << sinkBeaconPhase << " eddyCx=" << g_eddyCx
+     << " eddyCy=" << g_eddyCy << " eddyR=" << g_eddyR << "\n";
+   f << "decode_writes hello=" << rwDec[dahello::kFrameHello] << " beacon=" << rwDec[dahello::kFrameBeacon]
+@@ -6034,6 +6437,26 @@ Pipeline::WriteReport ()
+       oss << "(ctrl_tx_T_sim=" << ctrlTxWindow
+           << " pkts * " << kCtrlPacketBits << " bits / T_sim; drain excluded)\n";
+     }
++  if (qelarDaFix) // A2.11: emit only when switch on (Gate1 identity when off)
++    {
++      oss << "QELAR_DA qelarDaFix=" << (qelarDaFix ? 1 : 0)
++          << " margin=" << proto->daActiveMargin ()
++          << " mem_events=" << proto->daMemEvents ()
++          << " rank_events=" << proto->daRankEvents ()
++          << " refresh_events=" << proto->daRefreshEvents ()
++          << " fc_reply=" << fcTx
++          << " fc_sched=" << fcSched
++          << " fc_cancel=" << fcCancel
++          << " fc_ratelim=" << fcRateLim
++          << " qelarHelloOnly=" << (qelarHelloOnly ? 1 : 0)
++          << " data_writes_suppressed=" << rwDataSkipped;
++      // A2.12: emit qelarDaFc only when 0 so default (1) stays bit-identical to p17.
++      if (!qelarDaFc)
++        {
++          oss << " qelarDaFc=0";
++        }
++      oss << "\n";
++    }
+   oss
+       << "event_hellos=" << eventHelloWindow
+       << " bootstrap_hellos=" << bootstrapHelloWindow
+@@ -8469,7 +8892,8 @@ main (int argc, char *argv[])
+   cmd.AddValue ("lifetime", "p2: 1 = print output-only LIFETIME_PROJ line (projected first/half node death); default 0 = off", pipe.lifetimeOut);
+   cmd.AddValue ("letFrac", "t23/t25: letadapt|marv-let QLAR tau in (0,1) (default 0.3, QLAR Table 2)", pipe.letFrac);
+   cmd.AddValue ("naiveRefresh", "t23/t25: naivevoid|marv-naive periodic refresh in [60,120] s (default 90)", pipe.naiveRefresh);
+-  cmd.AddValue ("hostSched", "PORT A: QELAR/SAQR baseline HELLO schedule off|periodic|trickle|speedadapt", pipe.hostSched);
++  cmd.AddValue ("hostFidelity", "A2.9: 0=p15v2-identical (default); 1=paper host fixes + allow hostSched=da", pipe.hostFidelity);
++  cmd.AddValue ("hostSched", "PORT A: QELAR/SAQR baseline HELLO schedule off|periodic|trickle|speedadapt|da", pipe.hostSched);
+   cmd.AddValue ("disc", "PORT A Gate 2: oracle (legacy default) | heard", pipe.discMode);
+   cmd.AddValue ("tickPoison", "bin_tt: poison node copies during proto->tick + held-state guard (heard)", tt::tickPoison);
+   cmd.AddValue ("leakTest", "PORT A Gate 2: 0 off; 1..4 planted oracle leak (exit 3); 5 tick scope (tickPoison); 6 --lqarpPosDa=2 scope (p7); 7 marv-dahello-hs legacy HS-HELLO delivery (p8); 8 marv daFire true peer z (p8, with --tickPoison=1); 9 B6 reads a peer pose (p9); 10 B8/B9 first-contact test via the live range gate (p9); 11 B4 reads peer true velocities (p13)", pipe.leakTest);
+@@ -8498,6 +8922,9 @@ main (int argc, char *argv[])
+   cmd.AddValue ("sinkBeacon", "PORT A item 4: sink pose beacon period (s), medium on, all arms; 0 = off", pipe.sinkBeaconS);
+   cmd.AddValue ("periodicJitter", "p15 A2.2(a) v2: 1 = per-node phase U[0,T) for marv-T<s>, QELAR/SAQR energyRefresh, and --hostSched=periodic; 0 = p14", pipe.periodicJitter);
+   cmd.AddValue ("helloOnlyHost", "p15 A2.2(b): 1 = neighbour state written ONLY from HELLO/beacon decodes (forces --pollStored=1); 0 = p14", pipe.helloOnlyHost);
++  cmd.AddValue ("qelarDaFix", "A2.11: 1 = QELAR DA honours CLI daMargin/daImin/daDoublings/daRefresh + FC reply + mem/rank/refresh export; 0 = p16 hard-coded", pipe.qelarDaFix);
++  cmd.AddValue ("qelarHelloOnly", "A2.11: 1 = QELAR data headers carry no neighbour attrs (V/E/groupAvg/depth); neighbour records only from HELLO/beacon; requires hostFidelity=1", pipe.qelarHelloOnly);
++  cmd.AddValue ("qelarDaFc", "A2.12: with --qelarDaFix=1, 1 = allocate first-contact reply (default, p17); 0 = membership/rank/refresh only, fc_reply=0", pipe.qelarDaFc);
+   cmd.AddValue ("eddyCx", "p15 A2.2(d): eddy centre x (m), default 3000 = p14", g_eddyCx);
+   cmd.AddValue ("eddyCy", "p15 A2.2(d): eddy centre y (m), default 3000 = p14", g_eddyCy);
+   cmd.AddValue ("eddyR", "p15 A2.2(d): eddy core radius (m), default 2000 = p14", g_eddyR);
+@@ -8524,6 +8951,10 @@ main (int argc, char *argv[])
+     }
+   cmd.Parse (argc, argv);
+   NS_ABORT_MSG_IF (pipe.helloOnlyHost && pipe.discMode != "heard", "--helloOnlyHost=1 needs --disc=heard");
++  NS_ABORT_MSG_IF (pipe.qelarHelloOnly && pipe.discMode != "heard", "--qelarHelloOnly=1 needs --disc=heard");
++  NS_ABORT_MSG_IF (pipe.qelarHelloOnly && pipe.hostFidelity == 0, "--qelarHelloOnly=1 requires --hostFidelity=1");
++  NS_ABORT_MSG_IF (pipe.qelarDaFix && pipe.protoName.compare (0, 5, "qelar") != 0,
++                   "--qelarDaFix=1 applies to qelar* only");
+   if (pipe.helloOnlyHost)
+     {
+       pipe.pollStored = true; // A2.2(e): --helloOnlyHost=1 forces --pollStored=1
+@@ -8656,6 +9087,31 @@ main (int argc, char *argv[])
+     {
+       pipe.InstallComparators ();
+     }
++  // A2.11/A2.12: QELAR --qelarDaFix=1 allocates FC when --qelarDaFc=1 (default; p17 identity).
++  if (pipe.qelarDaFix && pipe.qelarDaFc && pipe.fcOn && pipe.fcSt.empty ())
++    {
++      pipe.fcSt.assign (pipe.nNodes (), cmp::FcState{});
++      pipe.fcRng.seed (static_cast<uint64_t> (pipe.seed) * 0xD1B54A32D192ED03ull + 29);
++      std::cout << "PORTA A2.11 QELAR FC allocated n=" << pipe.nNodes ()
++                << " qelarDaFix=1 fcOn=1\n";
++    }
++  // A2.11 Gate 2: sample QELAR neighbour-table size when --qelarHelloOnly=1.
++  if (pipe.qelarHelloOnly && pipe.proto)
++    {
++      for (double t = 0.0; t <= pipe.tSim + 1e-9; t += 100.0)
++        {
++          Simulator::Schedule (Seconds (t), [&pipe, t] {
++            uint64_t sum = 0;
++            const uint32_t n = pipe.nNodes ();
++            for (uint32_t i = 0; i < n; ++i)
++              {
++                sum += pipe.proto->heardCount (i);
++              }
++            std::cout << "QELAR_TABLE t=" << t << " sum_heard=" << sum
++                      << " mean=" << (n ? static_cast<double> (sum) / n : 0.0) << "\n";
++          });
++        }
++    }
+   pipe.ScheduleTraffic ();
+   Simulator::Stop (Seconds (pipe.tSim + pipe.drainS + 1.0));
+   Simulator::Run ();
+diff --git a/examples/scenario-porta.inc b/examples/scenario-porta.inc
+index 556fe9d..bc56acf 100644
+--- a/examples/scenario-porta.inc
++++ b/examples/scenario-porta.inc
+@@ -318,6 +318,8 @@ Pipeline::MedOnTxStart (uint32_t s, dahello::MediumFrame &f)
+           pf->hV = marv->marv ().advertisedV (s);
+           pf->hVoid = marv->marv ().advertisedVoid (s);
+         }
++      // A2.11: refresh clock for QELAR DA (--qelarDaFix).
++      proto->noteOwnCtrlTx (s);
+       return;
+     }
+   if (f.kind != dahello::kFrameData)
+@@ -330,6 +332,20 @@ Pipeline::MedOnTxStart (uint32_t s, dahello::MediumFrame &f)
+   pf->hV = proto->advertisedV (s);
+   pf->hnum = static_cast<double> (proto->advertisedNumber (s));
+   pf->hG = proto->advertisedGroupAvg (s);
++  // A2.11 --qelarHelloOnly=1: strip neighbour attributes from QELAR data headers
++  // (V, residual energy, group-average energy, depth/position, neighbour count).
++  // File: scenario-porta.inc MedOnTxStart; mirrored on RX by hoSkip before applyHostFrame.
++  if (qelarHelloOnly)
++    {
++      const double nan = std::numeric_limits<double>::quiet_NaN ();
++      pf->hz = nan;
++      pf->he = nan;
++      pf->hV = nan;
++      pf->hnum = nan;
++      pf->hG = nan;
++      pf->hx = nan;
++      pf->hy = nan;
++    }
+   if (marv)
+     {
+       dahello::MarvProtocol &mp = marv->marv ();
+@@ -819,7 +835,21 @@ Pipeline::ApplyHeardFromDecode (uint32_t r, uint32_t s, double snrDb, const PFra
+       // --leakTest=10 swaps in the legacy live range gate (oracle) to prove the guard.
+       // p10: never-heard-only (user decision 2026-10-16): reply iff r has never held a
+       // record of s (MarvRecord::heard is set by the first decoded frame and never cleared).
+-      const bool known = (leakTest == 10) ? marv->marv ().inRange (r, s) : marv->marv ().record (r, s).heard;
++      // A2.11: under --qelarDaFix, QELAR uses Fwd::everHeard (heard_ bit, never cleared).
++      bool known = false;
++      if (leakTest == 10)
++        {
++          NS_ABORT_MSG_IF (!marv, "--leakTest=10 needs MARV");
++          known = marv->marv ().inRange (r, s);
++        }
++      else if (marv)
++        {
++          known = marv->marv ().record (r, s).heard;
++        }
++      else
++        {
++          known = proto->everHeard (r, s);
++        }
+       std::uniform_real_distribution<double> u (0.0, 1.0);
+       const double u01 = u (fcRng);
+       const double before = fcSt[r].lastTx + 5.0;
+@@ -834,7 +864,8 @@ Pipeline::ApplyHeardFromDecode (uint32_t r, uint32_t s, double snrDb, const PFra
+           Simulator::Schedule (Seconds (t - now), &Pipeline::CmpFcFire, this, r, fcSt[r].token);
+         }
+     }
+-  const bool hoSkip = helloOnlyHost && kind == dahello::kFrameData; // p15 A2.2(b)
++  // p15 A2.2(b) helloOnlyHost; A2.11 qelarHelloOnly: data carries no neighbour attrs for QELAR.
++  const bool hoSkip = (helloOnlyHost || qelarHelloOnly) && kind == dahello::kFrameData;
+   if (newCmpOn && kind != dahello::kFrameAck && r < chNew.size () && r != s && hoSkip)
+     {
+       ++rwCmpDataSkipped; // p15: comparator table not written from data under --helloOnlyHost=1
+diff --git a/model/lqarp-protocol.cc b/model/lqarp-protocol.cc
+index 2ccd44d..7b89754 100644
+--- a/model/lqarp-protocol.cc
++++ b/model/lqarp-protocol.cc
+@@ -28,6 +28,11 @@ LqarpProtocol::LqarpProtocol(ChannelGate& gate,
+     if (!std::isfinite(rRangeM_)) {
+         rRangeM_ = gate_->rangeAtSnrThreshold();
+     }
++
++    // A2.9 hostFidelity=1: gamma placeholder 0.95 (paper gives no value).
++    if (cfg_.hostFidelity) {
++        cfg_.gamma = 0.95;
++    }
+     const size_t n = nodes_.size();
+     Q_.assign(n, std::vector<double>(n, 0.0));
+     frozen_.assign(n, std::vector<FrozenNeighbor>(n));
+diff --git a/model/lqarp-protocol.h b/model/lqarp-protocol.h
+index 84535d0..9959bca 100644
+--- a/model/lqarp-protocol.h
++++ b/model/lqarp-protocol.h
+@@ -6,9 +6,9 @@
+ // Identifiers follow SPEC.md: c_lin, c_ene, c_del, c_nei, I(s_i),
+ // number_{s_j}, E_avg, E_ini, p_e, P_succ, r_range, SNR_threshold.
+ //
+-// gamma = 0.8 is DA-HELLO's Section 4.1 value. The LQARP extraction
+-// matrix confirmed only alpha = 0.9; a distinct LQARP-paper gamma
+-// was not given. Flagged, not assumed.
++// gamma = 0.8 is DA-HELLO's Section 4.1 value (hostFidelity=0 / p15v2).
++// A2.9 hostFidelity=1 sets gamma = 0.95 (paper gives no value; placeholder).
++// alpha = 0.9 (Table II). E_avg = mean residual of the candidate set (Eq. 39).
+ 
+ #ifndef DAHELLO_LQARP_PROTOCOL_H
+ #define DAHELLO_LQARP_PROTOCOL_H
+@@ -39,6 +39,9 @@ struct LqarpConfig {
+     // Port A Gate 2: heard-only discovery (default false = legacy oracle).
+     bool heardOnly = false;
+     double tNbS = 3600.0; // neighbour freshness (s); used only when heardOnly
++    // A2.9 --hostFidelity: when true, gamma = 0.95 (paper gives no value; stays
++    // placeholder at 0.95). Default false keeps gamma=0.8 (p15v2 / DA-HELLO Sec 4.1).
++    bool hostFidelity = false;
+ };
+ 
+ // SPEC 1.5: max detour hops per packet. Design parameter, not from
+diff --git a/model/qelar-protocol.cc b/model/qelar-protocol.cc
+index 6f5b9e4..680f4c0 100644
+--- a/model/qelar-protocol.cc
++++ b/model/qelar-protocol.cc
+@@ -25,6 +25,9 @@ QelarProtocol::QelarProtocol(ChannelGate& gate,
+     if (!(rRangeM_ > 0.0)) {
+         rRangeM_ = gate_->rangeAtSnrThreshold();
+     }
++    // A2.9: beta1/beta2 are paper Eq.(13) weights; failure branch stays off (A8-X1).
++    (void)cfg_.beta1;
++    (void)cfg_.beta2;
+     const size_t n = nodes_.size();
+     Q_.assign(n, std::vector<double>(n, 0.0));
+     qWritten_.assign(n, std::vector<char>(n, 0));
+@@ -33,6 +36,7 @@ QelarProtocol::QelarProtocol(ChannelGate& gate,
+     heard_.assign(n, std::vector<char>(n, 0));
+     tHeard_.assign(n, std::vector<double>(n, -1.0));
+     heldV_.assign(n, std::vector<double>(n, std::numeric_limits<double>::quiet_NaN()));
++    heldSnr_.assign(n, std::vector<double>(n, std::numeric_limits<double>::quiet_NaN()));
+ }
+ 
+ bool
+@@ -41,6 +45,27 @@ QelarProtocol::fresh(uint32_t i, uint32_t j) const
+     return i != j && hc_.fresh(heard_[i][j] != 0, tHeard_[i][j]);
+ }
+ 
++bool
++QelarProtocol::everHeard(uint32_t i, uint32_t j) const
++{
++    checkIndex(i);
++    checkIndex(j);
++    return i != j && heard_[i][j] != 0;
++}
++
++uint32_t
++QelarProtocol::heardCount(uint32_t i) const
++{
++    checkIndex(i);
++    uint32_t n = 0;
++    for (uint32_t j = 0; j < nodes_.size(); ++j) {
++        if (j != i && heard_[i][j] != 0) {
++            ++n;
++        }
++    }
++    return n;
++}
++
+ void
+ QelarProtocol::hearFrame(uint32_t rx, uint32_t tx, double t, const HeardFrame& f)
+ {
+@@ -58,6 +83,9 @@ QelarProtocol::hearFrame(uint32_t rx, uint32_t tx, double t, const HeardFrame& f
+     if (std::isfinite(f.V)) {
+         heldV_[rx][tx] = f.V;
+     }
++    if (std::isfinite(f.snrDb)) {
++        heldSnr_[rx][tx] = f.snrDb; // A2.9: record SNR for fidelity candidate cut
++    }
+     heard_[rx][tx] = 1;
+     tHeard_[rx][tx] = t;
+ }
+@@ -138,6 +166,13 @@ QelarProtocol::candidateSet(uint32_t i) const
+     std::vector<uint32_t> out;
+     for (uint32_t j = 0; j < nodes_.size(); ++j) {
+         if (hc_.on ? fresh(i, j) : inRange(i, j)) { // heard: candidates = fresh records
++            // A2.9 hostFidelity=1: require record SNR >= threshold (no depth filter).
++            if (cfg_.hostFidelity && hc_.on) {
++                const double s = heldSnr_[i][j];
++                if (!(std::isfinite(s) && s >= cfg_.snrThresholdDb)) {
++                    continue;
++                }
++            }
+             out.push_back(j);
+         }
+     }
+diff --git a/model/qelar-protocol.h b/model/qelar-protocol.h
+index eeaa07b..6cadb0c 100644
+--- a/model/qelar-protocol.h
++++ b/model/qelar-protocol.h
+@@ -31,9 +31,13 @@ struct QelarConfig {
+     double g = 1.0;
+     double alpha1 = 0.5;
+     double alpha2 = 0.05;
++    double beta1 = 0.5;   // A2.9 fidelity=1: Eq. (13) failure weights (paper)
++    double beta2 = 0.05;
+     double gamma = 0.5;
+     double eIni = kDefaultEiniJ;
+     double rRangeM = 0.0;
++    double snrThresholdDb = 8.68; // A2.9 fidelity=1: candidate SNR cut
++    bool hostFidelity = false;    // A2.9 --hostFidelity; default 0 = p15v2
+ };
+ 
+ struct QelarReward {
+@@ -56,7 +60,8 @@ public:
+ 
+     void setSink(uint32_t sinkId);
+ 
+-    // Acoustic range, live geometry. No N_depth, no N_SNR.
++    // Acoustic range / fresh heard. Fidelity=1 adds record SNR >= threshold.
++    // No N_depth. Previous-hop revisit is allowed by the Forward seam when fidelity=1.
+     std::vector<uint32_t> candidateSet(uint32_t i) const;
+ 
+     QelarReward reward(uint32_t i, uint32_t j) const;
+@@ -85,6 +90,10 @@ public:
+     // Held write from a decoded frame (residual energy, group average, V).
+     void hearFrame(uint32_t rx, uint32_t tx, double t, const HeardFrame& f);
+     bool fresh(uint32_t i, uint32_t j) const;
++    // A2.11: ever held a record of j (never cleared; for first-contact known-sender test).
++    bool everHeard(uint32_t i, uint32_t j) const;
++    // A2.11 Gate 2: count of nodes with a heard record at i (any age).
++    uint32_t heardCount(uint32_t i) const;
+     // Sender's own advertised values at its transmission start (I1).
+     double ownV(uint32_t s) const;          // max over written Q(s, .) (legacy valueOf(s))
+     double ownGroupAverage(uint32_t s) const;
+@@ -105,6 +114,7 @@ private:
+     HeardCtl hc_;
+     std::vector<std::vector<double>> tHeard_;
+     std::vector<std::vector<double>> heldV_;
++    std::vector<std::vector<double>> heldSnr_; // A2.9 fidelity=1
+ 
+     void checkIndex(uint32_t i) const;
+     bool inRange(uint32_t i, uint32_t j) const;
+diff --git a/model/saqr-protocol.cc b/model/saqr-protocol.cc
+index c3e16a3..b38857e 100644
+--- a/model/saqr-protocol.cc
++++ b/model/saqr-protocol.cc
+@@ -529,9 +529,18 @@ SaqrProtocol::nextHop(uint32_t i, const std::vector<uint32_t>& actions) const
+     if (acts.empty()) {
+         return -1;
+     }
+-    const double eps = (decisions_[i] >= cfg_.exploreDecisions) ? cfg_.epsilonLate
+-                                                                : cfg_.epsilon0;
++    double eps;
++    if (cfg_.hostFidelity) {
++        // A2.9: epsilon by warm-up wall time (labelled placeholder for paper "round").
++        const double now = hc_.on ? hc_.now() : 0.0;
++        eps = (now < cfg_.warmS) ? cfg_.epsilon0 : cfg_.epsilonLate;
++    } else {
++        eps = (decisions_[i] >= cfg_.exploreDecisions) ? cfg_.epsilonLate
++                                                        : cfg_.epsilon0;
++    }
+     ++decisions_[i];
++    (void)cfg_.holdK;    // A2.9 stored; holding semantics remain A8-S3 deviation
++    (void)cfg_.qMinInit;
+     std::uniform_real_distribution<double> unit(0.0, 1.0);
+     if (unit(rng_) < eps) {
+         std::uniform_int_distribution<size_t> pick(0, acts.size() - 1);
+diff --git a/model/saqr-protocol.h b/model/saqr-protocol.h
+index 1cad3d3..40c9c36 100644
+--- a/model/saqr-protocol.h
++++ b/model/saqr-protocol.h
+@@ -6,7 +6,9 @@
+ // Eq. (11) average with the min substituted for the max, alpha=0.1
+ // (Table 2), gamma=0.8 (Section 7.4, the runs that fix the other knob).
+ // epsilon starts at 0.5 and is fixed at 0.01 after 20 forwarding
+-// decisions at that node (page 14).
++// decisions at that node (page 14) when hostFidelity=0.
++// A2.9 hostFidelity=1: epsilon 0.5 during warmS (900 s) then 0.01
++// (paper "round" has no meaning in our time base; labelled placeholder).
+ //
+ // Two signed implementation choices, not published formulas:
+ //   the star in Eq. (15) is min-max over the actions of this decision,
+@@ -36,13 +38,17 @@ struct SaqrConfig {
+     double gamma = 0.8;
+     double epsilon0 = 0.5;
+     double epsilonLate = 0.01;
+-    uint32_t exploreDecisions = 20;
++    uint32_t exploreDecisions = 20; // fidelity=0: switch after N decisions
++    double warmS = 900.0;          // A2.9 fidelity=1: epsilon switch by warm time
++    double holdK = 3.2;            // A2.9: paper k at R_op 1200 m (holding not applied)
++    double qMinInit = 1.0;         // A2.9: paper Q_min initial (holding not applied)
+     double eIni = kDefaultEiniJ;
+     double rRangeM = 0.0;
+     double soundSpeedMps = 1500.0;
+     double bitRateBps = 1000.0;
+     uint32_t packetBits = 400;
+     uint32_t rngSeed = 1;
++    bool hostFidelity = false;     // A2.9 --hostFidelity
+ };
+ 
+ struct SaqrReward {

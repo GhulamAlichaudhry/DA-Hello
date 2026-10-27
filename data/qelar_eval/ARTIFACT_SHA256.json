@@ -1,0 +1,18 @@
+{
+  "t109_report.md": "d9213b3e2b33263092ebf2d5fa16f59ee840c760243fda3df5bb0d8bd2198899",
+  "per_run.csv": "fd17f44c6aa2801fbbe5d4c41ca5a33992c88c3a89b7cfba6f6fe8391a0893a2",
+  "cell_means_phase2.csv": "9d45e4389f5c38fe13bdf70b0c732c1afb4729723b11b41d53cdb273afda19bd",
+  "paired_tables.csv": "c51a7c83f37e3f85069b082fd9a2a39eb37f5b9590bc62468527def39c5de9ac",
+  "a2124_stats.json": "a7331ce6f47b5c8881b121be67563231b7c4e70943e179f5f167e41ded6a8dfa",
+  "p18_vs_p17.diff": "bdb49d5e253871277a36e40bea70ab45df3272140c0a3306fc06ca42d7c38ddd",
+  "phase1_jobs.json": "60a600d8a3b0f2e3a059f503a5af21f8e7c103ae8a77c1ee9fe73d417d9fd138",
+  "phase2_jobs.json": "7d2823cf83c941e176ba6875b0ab5869c4a3bc581fa289558e3427fba2aa355a",
+  "phase1_selection.json": "1996c83f041432bdf82ee38b579a032a957bb937f8df379ffb443eb96f5a4901",
+  "ledger_BEFORE.json": "e10ce2034481d7fe97458bd834f8b12dad5440dcce7a2c6afe98f73ea8371f8f",
+  "ledger_PHASE1_DECISION.json": "2dfee68c48221f571d16f7b9e02d75bce10957d6b72b936dce03293a2bdb2dab",
+  "ledger_PHASE2_BEFORE_v2.json": "5f41048cc161ad338a74bf5109d0c1911b1b260a3fc35f768097d26ea3855348",
+  "ledger_AFTER.json": "2b579212211d291eb9a6f807a6342e310542541a9bb86a272ad4ea235d353b48",
+  "run_summary_phase1.json": "1c09125649a4526d75f7bc71afceeb9262567ab857d4e61aee7c464c0a5bbb6e",
+  "run_summary_phase2.json": "1a207a7a9325e7d1286ccf3184f79b43b5d8356ec81ae3f4e92ba5f22f945057",
+  "t109_p18_20261023.zip": "caafbac1f510fd7a2183ef53e789e5f2b8c6658d38c67005af49eaf4f953b119"
+}

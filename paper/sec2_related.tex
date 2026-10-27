@@ -1,0 +1,168 @@
+\section{Related Work}
+\label{sec:related}
+
+This section reviews the literature with a focus on how a node learns
+the state of its neighbors and what determines when it re-advertises its
+own.
+Table~\ref{tab:related} summarizes this for the learning-based UWSN
+routers closest to our setting; the remaining subsections cover adaptive
+HELLO schemes in Q-learning routers for other mobile networks,
+change-driven control messages in ad hoc routing and vehicular
+standards, adaptive beaconing and Trickle, and the
+estimation and information-freshness literature.
+
+\begin{table*}[t]
+\centering
+\caption{How learning-based UWSN routers keep neighbor state current
+(``n.p.''~=~not published). Last row: DA-HELLO.}
+\label{tab:related}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}l l p{4.0cm} p{3.2cm} p{4.0cm}@{}}
+\hline
+Protocol & Learning & How neighbor state is disseminated & Control-message interval & Rule for re-advertising \\
+\hline
+QELAR \cite{hu2010qelar} & Q-learning (model-based) & Carried in data packets & none & Data-driven; no control message \\
+CARMA \cite{divalerio2019carma} & Distributed RL & Header fields and overhearing; 6-byte HELLO for discovery & n.p. & Data-driven \\
+DROR \cite{wang2023rldepth} & Q-learning + opportunistic & Header fields; sink broadcast on delivery & none & Data-driven \\
+SAQR \cite{zhang2025saqr} & Q-learning & Carried in data packets & none & Data-driven \\
+Chang \emph{et~al.} \cite{chang2019passive} & RL & Beacon from every node & One per time slot (slot length n.p.) & Fixed timer \\
+MARV \cite{wang2024marv} & Multi-agent RL & Header fields plus a periodic control packet & n.p. & Fixed timer \\
+CLORP \cite{liu2024clorP} & Multi-agent RL & HELLO message & n.p. & Fixed timer \\
+QLAR \cite{li2025qlar} & Q-learning + EKF & Periodic HELLO with position, velocity, and $V$-value & $\tau\min_j T_{\mathrm{LET}}$, $\tau=0.3$ & Timer scaled by predicted link-expiration time under a fixed-range model \\
+LQARP \cite{liu2026lqarp} & Q-learning & Header fields ($V$-value, neighbor count); position and energy from one initialization broadcast & none & Data-driven \\
+\hline
+DA-HELLO (this work) & Q-learning hosts (host-parametric) & HELLO on demand; one broadcast at first contact & Event-driven & Change could alter a neighbor's candidate set or order \\
+\hline
+\end{tabular}
+
+\end{table*}
+
+\subsection{Learning-Based UWSN Routing and Neighbor-State Maintenance}
+Reinforcement-learning routers for underwater networks differ in their
+learning rule, ranging from tabular Q-learning with an energy-aware
+reward \cite{hu2010qelar} to channel-aware distributed learning
+\cite{divalerio2019carma}, service-aware rewards \cite{zhang2025saqr},
+void recovery \cite{wang2023rldepth}, multi-agent formulations
+\cite{wang2024marv,liu2024clorP}, and rewards built on multipath-aware
+link quality \cite{liu2026lqarp}.
+They share one requirement: a forwarder needs its neighbors' values
+(value estimates, residual energy, depth, or link quality) at decision
+time.
+The protocols meet it in three ways.
+
+The first is to carry the state in data packets and learn it by
+overhearing, as in QELAR, CARMA, DROR, SAQR, and LQARP.
+This costs no control traffic, but a node that is not on a forwarding
+path advertises nothing.
+MARV makes the point explicit: besides the header fields, each node
+broadcasts a control packet ``periodically'' so that neighbors learn its
+state ``even if they do not have packets to forward''
+\cite{wang2024marv}.
+The second is a timer.
+Chang \emph{et~al.} have every node beacon at the start of each time
+slot \cite{chang2019passive}; MARV and CLORP likewise rely on a
+periodic control message \cite{wang2024marv,liu2024clorP}.
+In these designs the interval is a fixed constant, and in several of
+them it is not reported
+\cite{chang2019passive,wang2024marv,liu2024clorP}.
+Nothing links it to how quickly the advertised state is changing.
+
+The third adapts the timer.
+QLAR predicts neighbor positions and velocities with an extended Kalman
+filter and sets the HELLO interval to a fraction $\tau$ of the shortest
+predicted link-expiration time among neighbors \cite{li2025qlar}.
+It is the closest UWSN precedent to our work, and we run its
+link-expiration-scaled interval as a baseline (Section~\ref{sec:eval}).
+Its connectivity model is a fixed communication range, so link expiry
+is a purely geometric event, and it remains a timer rather than a test
+of whether the advertised change matters to any neighbor's decision.
+
+Mobility enters the UWSN literature in other ways as well.
+Chang \emph{et~al.} model passively drifting sensors but keep the
+per-slot beacon \cite{chang2019passive}; cooperative multi-AUV
+collection plans vehicle paths with deep Q-learning
+\cite{wang2024lgdqn,liu2025mdqn,lu2025wper}; an AUV can be dispatched
+to repair isolated sub-networks \cite{nandyala2025isolated};
+acoustic--radio meshes switch media opportunistically
+\cite{jiang2023hybrid}; routes, power, and link schedules have been
+optimized jointly \cite{yuan2024multiobj,yuan2024crosslayer}; and
+spatial-temporal graphs record neighbor relations over periodic
+intervals for multi-UUV routing \cite{xu2025stgr}.
+In these designs motion affects where a vehicle goes or which medium is
+used; none uses it to decide when a neighbor should be told.
+
+\subsection{Adaptive HELLO Intervals in Q-Learning and Ad Hoc Routing}
+Outside UWSNs, several Q-learning FANET/MANET routers adapt the HELLO
+period to speed, neighbor churn, or predicted link lifetime
+\cite{liu2020qmr,wei2023qfagr,cui2022tarraq,mahmud2019eehello,han2013hello}.
+These schemes set \emph{how often} to advertise from kinematics or
+topology change rates; they do not test whether a given attribute change
+would alter a learned ranking at a neighbor.
+Therefore, rate adaptation alone does not address decision relevance for
+Q-learning hosts.
+
+\subsection{Change-Driven Control Messages}
+Triggered updates appear in classical ad hoc routing and neighbor
+discovery: DSDV triggered updates, TBRPF next-hop-relevant reporting,
+NHDP responsive HELLOs, and ETSI CAM rules keyed on kinematics
+\cite{perkins1994dsdv,rfc3684,rfc6130,etsi302637}.
+The common pattern is to advertise when a link, metric, or trajectory
+changes beyond a threshold.
+However, the trigger is defined on topology or kinematics rather than on
+whether a \emph{learned} score would change a neighbor's next-hop choice.
+Therefore, a decision-relevance test for Q-learning hosts remains open.
+
+\subsection{Adaptive Beaconing and Trickle}
+Terrestrial networks adapt the beacon rate to speed or neighbor turnover
+\cite{ingelrest2007tap,sadiq2013beaconing}.
+Trickle doubles its interval while neighbors are consistent and resets on
+inconsistency \cite{levis2004trickle,rfc6206}; RPL applies it to routing
+control and resets on routing-state inconsistency \cite{rfc6550}.
+These schemes answer \emph{how often} to beacon given mobility or churn,
+not whether a given change would alter a learned candidate order.
+We therefore use periodic timers and a tuned Trickle as baselines.
+
+\subsection{Event-Triggered Estimation and the Value of Updates}
+Event-triggered estimation transmits an update when a prediction residual
+or innovation exceeds a threshold
+\cite{priel2023consensus,sebastian2024eco,deng2023auto,deng2024lcsys,zhong2024tsp}.
+Li \emph{et~al.} use media-specific triggers for a hybrid underwater
+network \cite{li2026dse}; Kalman and Markov models have been compared for
+predicting acoustic SNR from traces \cite{busacca2024snr}.
+In all of these works the trigger protects an estimation error.
+Age-of-information scheduling instead asks how often a source should
+update so that the receiver's information stays fresh
+\cite{kaul2012aoi,yates2021aoisurvey}; value-of-information and
+goal-oriented communication transmit an update only when it matters to
+the receiver's goal
+\cite{ayan2019voi,kountouris2021semantics,li2024got}.
+Our trigger is a concrete instance of this goal-oriented principle in
+which the receiver's goal is its next-hop choice; it does not use an
+estimation-error trigger.
+
+\subsection{Positioning and Research Gap}
+The principle ``advertise only what can change a neighbor's routing
+decision'' is therefore not new: it appears in DSDV triggered updates,
+TBRPF's next-hop-relevant reporting, NHDP responsive HELLOs, RPL's
+inconsistency reset, QFAGR's hole broadcasts, TARRAQ's event-driven
+sensing interval, and goal-oriented updating.
+On the campaigned hosts, the realized DA-HELLO traffic under locked
+configurations is dominated by first-contact replies, membership
+(void-status) events, and optional slow refresh rather than by a
+continuously firing rank test.
+What remains open, and what this paper contributes, is narrower.
+First, a formal definition of decision relevance for \emph{learned}
+scores: a change is relevant if it alters whether a node is a candidate
+of some neighbor or flips the sign of a score gap to a co-candidate
+(Section~\ref{sec:prelim}), which no shortest-path or threshold rule
+captures for Q-learning hosts.
+Second, a local, host-parametric estimator of that test that a sender
+can evaluate from the information it is allowed to hold, with the host
+entering only through its candidate test and score.
+Third, a cross-host evaluation of HELLO scheduling for Q-learning UWSN
+routers with different control planes, against tuned adaptive
+baselines that include QLAR's link-expiration timer, under one
+energy-accounting rule that includes idle listening, and on a shared
+acoustic medium with a contention MAC, half-duplex operation, and
+heard-only neighbor discovery.

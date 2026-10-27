@@ -1,0 +1,18 @@
+{
+  "authority": "Ali t151u A2.12",
+  "cst": "2026-10-23 15:00:58 CST",
+  "event": "t109_PHASE1_DECISION",
+  "chosen_arm": "da_m10",
+  "chosen_margin": 10.0,
+  "pooled_loss_mean": 0.005716056980000004,
+  "pooled_loss_pp": 0.5716056980000004,
+  "pooled_loss_ci": [
+    -0.0356031756806103,
+    0.0470352896406103
+  ],
+  "gate_5pp_pass": true,
+  "include_piggy_da_fc_off_in_phase2": true,
+  "note": "Phase1 mechanical selection+gate. INCLUDE piggy DA FC-off in Phase2.",
+  "run": false,
+  "set": "tuning (A2.12.2 Phase1 decision)"
+}

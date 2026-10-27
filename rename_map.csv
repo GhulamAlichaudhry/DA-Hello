@@ -1,0 +1,16 @@
+old,new,reason
+E-LQTP-portA,DA-HELLO-porta,canonical identifier/string rename in copies
+E-LQTP,DA-HELLO,canonical identifier/string rename in copies
+E_LQTP,DA_HELLO,canonical identifier/string rename in copies
+ELQTP,DAHELLO,canonical identifier/string rename in copies
+elqtp,dahello,canonical identifier/string rename in copies
+Elqtp,Dahello,canonical identifier/string rename in copies
+per_run.csv,t109_per_run.csv,clearer DoR name
+elqtp-run-config.cc,dahello-run-config.cc,filename from /workspace/out/t164_impl_audit_p15v2_p18_20261024/01_frozen_sources/p15v2/src/model/elqtp-run-config.cc
+elqtp-run-config.h,dahello-run-config.h,filename from /workspace/out/t164_impl_audit_p15v2_p18_20261024/01_frozen_sources/p15v2/src/model/elqtp-run-config.h
+elqtp-protocol.cc,dahello-protocol.cc,filename from /workspace/out/t164_impl_audit_p15v2_p18_20261024/01_frozen_sources/p15v2/src/model/elqtp-protocol.cc
+elqtp-protocol.h,dahello-protocol.h,filename from /workspace/out/t164_impl_audit_p15v2_p18_20261024/01_frozen_sources/p15v2/src/model/elqtp-protocol.h
+elqtp-run-config.cc,dahello-run-config.cc,filename from /workspace/out/t164_impl_audit_p15v2_p18_20261024/01_frozen_sources/p18/src/model/elqtp-run-config.cc
+elqtp-run-config.h,dahello-run-config.h,filename from /workspace/out/t164_impl_audit_p15v2_p18_20261024/01_frozen_sources/p18/src/model/elqtp-run-config.h
+elqtp-protocol.cc,dahello-protocol.cc,filename from /workspace/out/t164_impl_audit_p15v2_p18_20261024/01_frozen_sources/p18/src/model/elqtp-protocol.cc
+elqtp-protocol.h,dahello-protocol.h,filename from /workspace/out/t164_impl_audit_p15v2_p18_20261024/01_frozen_sources/p18/src/model/elqtp-protocol.h

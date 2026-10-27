@@ -1,0 +1,6 @@
+DA-HELLO clean LaTeX package (t186 bib fix)
+Built: 2026-10-26 Asia/Shanghai
+Pages: 12
+main.pdf SHA256: 9b7deac644ca6c13f7b5c8f66ab3027f4b303164ac9b87db9fc6897eb3eedb62
+refs.bib: 55 cited entries (7 added from Ali t186u, 27 unused removed)
+Undefined citations: 0

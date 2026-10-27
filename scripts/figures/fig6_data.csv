@@ -1,0 +1,31 @@
+figure,arm,scenario,n,mean,ci_lo,ci_hi,source_file,column,filter,metric,plotted
+fig6,T60,I,40,-9.163768153,-9.867762446521585,-8.459773859478416,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=T60-B0;sc=I;paired,delta_PDR_pp,1
+fig6,T60,II,40,-7.953417166249999,-8.56331830844954,-7.343516024050458,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=T60-B0;sc=II;paired,delta_PDR_pp,1
+fig6,T60,GM2,40,-7.00535824925,-7.54546253564472,-6.4652539628552805,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=T60-B0;sc=GM2;paired,delta_PDR_pp,1
+fig6,T120,I,40,-4.27759251475,-5.018574836481168,-3.5366101930188334,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=T120-B0;sc=I;paired,delta_PDR_pp,1
+fig6,T120,II,40,-2.855969905749998,-3.3896782158337158,-2.322261595666281,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=T120-B0;sc=II;paired,delta_PDR_pp,1
+fig6,T120,GM2,40,-2.8978100797500006,-3.3077689484691906,-2.4878512110308106,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=T120-B0;sc=GM2;paired,delta_PDR_pp,1
+fig6,Trickle (tuned),I,40,-0.3729261710000001,-0.8742116469262207,0.12835930492622058,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=B2star-B0;sc=I;paired,delta_PDR_pp,1
+fig6,Trickle (tuned),II,40,-0.6584271795000004,-1.1428989677855808,-0.17395539121442016,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=B2star-B0;sc=II;paired,delta_PDR_pp,1
+fig6,Trickle (tuned),GM2,40,-0.8321717175000002,-1.1700638932281322,-0.49427954177186817,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=B2star-B0;sc=GM2;paired,delta_PDR_pp,1
+fig6,DA-HELLO,I,40,0.59860113825,0.00707017733436047,1.1901320991656397,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=Pstar-B0;sc=I;paired,delta_PDR_pp,1
+fig6,DA-HELLO,II,40,0.6377478860000008,0.09195354178838594,1.1835422302116156,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=Pstar-B0;sc=II;paired,delta_PDR_pp,1
+fig6,DA-HELLO,GM2,40,0.4439987725000002,0.14431770078705436,0.7436798442129461,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=Pstar-B0;sc=GM2;paired,delta_PDR_pp,1
+fig6,T20,I,40,-36.922753157,-38.207671986556555,-35.63783432744344,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=T20-B0;sc=I;paired;OMITTED_FROM_PLOT,delta_PDR_pp,0
+fig6,T20,II,40,-33.34033272875,-34.751451294910424,-31.929214162589574,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=T20-B0;sc=II;paired;OMITTED_FROM_PLOT,delta_PDR_pp,0
+fig6,T20,GM2,40,-30.08441749375,-31.36247165752281,-28.806363329977184,t103_per_run.csv,wpdr,MARV-piggy;camp=C1;arm=T20-B0;sc=GM2;paired;OMITTED_FROM_PLOT,delta_PDR_pp,0
+fig6,T60,I,40,-12.487239308249997,-13.069458512592277,-11.90502010390772,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=T60-alone;sc=I;paired,delta_PDR_pp,1
+fig6,T60,II,40,-13.6908276295,-16.623664045420615,-10.757991213579386,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=T60-alone;sc=II;paired,delta_PDR_pp,1
+fig6,T60,GM2,40,-14.22501403675,-16.91643082656458,-11.53359724693542,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=T60-alone;sc=GM2;paired,delta_PDR_pp,1
+fig6,T120,I,40,-4.143655417,-4.541304914279454,-3.746005919720546,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=T120-alone;sc=I;paired,delta_PDR_pp,1
+fig6,T120,II,40,-6.33932741525,-9.295444612067309,-3.383210218432691,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=T120-alone;sc=II;paired,delta_PDR_pp,1
+fig6,T120,GM2,40,-7.074186215999998,-9.278912542425207,-4.869459889574792,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=T120-alone;sc=GM2;paired,delta_PDR_pp,1
+fig6,Trickle (default),I,40,-1.0504321154999992,-1.363676135686537,-0.7371880953134615,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=trickle-alone;sc=I;paired,delta_PDR_pp,1
+fig6,Trickle (default),II,40,-8.030580879,-10.697661566009769,-5.36350019199023,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=trickle-alone;sc=II;paired,delta_PDR_pp,1
+fig6,Trickle (default),GM2,40,-11.614332578750002,-14.382695679691196,-8.845969477808808,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=trickle-alone;sc=GM2;paired,delta_PDR_pp,1
+fig6,DA-HELLO (FC off),I,40,0.15905702400000027,-0.07713192118380816,0.3952459691838087,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=DA_FCoff_m10-alone;sc=I;paired,delta_PDR_pp,1
+fig6,DA-HELLO (FC off),II,40,-0.40790417824999936,-2.4194311982527266,1.603622841752728,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=DA_FCoff_m10-alone;sc=II;paired,delta_PDR_pp,1
+fig6,DA-HELLO (FC off),GM2,40,0.3085516130000003,-2.0306576052703496,2.6477608312703502,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=DA_FCoff_m10-alone;sc=GM2;paired,delta_PDR_pp,1
+fig6,DA-HELLO (FC on),I,40,-0.219151002249999,-0.5515904612460071,0.11328845674600913,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=DA_FCon_m0.5-alone;sc=I;paired,delta_PDR_pp,1
+fig6,DA-HELLO (FC on),II,40,-10.12120250625,-13.063372995207379,-7.179032017292621,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=DA_FCon_m0.5-alone;sc=II;paired,delta_PDR_pp,1
+fig6,DA-HELLO (FC on),GM2,40,-15.154159616250002,-17.677130461904675,-12.631188770595328,t109_p18/per_run.csv (phase==2),wpdr,QELAR-piggy;arm=DA_FCon_m0.5-alone;sc=GM2;paired,delta_PDR_pp,1

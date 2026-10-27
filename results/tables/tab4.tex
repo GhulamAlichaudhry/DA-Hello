@@ -1,0 +1,22 @@
+\begin{table*}[!t]
+\caption{DA-HELLO HELLO Starts by Cause in Scenario~II ($n=40$ Seed Means).
+First-Contact Replies Dominate; Slow Refresh Accounts for Most of the
+Remainder on HELLO-Only Hosts. Membership and Score-Change Requests
+Together Stay Under 160 per Run.}
+\label{tab:causes}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lrrrrp{0.28\textwidth}@{}}
+\hline
+Host / arm & HELLO tx & FC reply & Refresh & Mem./rank & Notes \\
+\hline
+MARV HELLO-only & 8160 & 5055 & 2836$^{\mathrm{a}}$ & 44 & refresh$=$480\,s \\
+QELAR HELLO-only & 8094 & 4679 & 3742 & 158 & mem 14, rank 144 \\
+QELAR header (FC off) & --- & 0 & 0 & 14 & $\approx$12 membership \\
+QELAR header (FC on) & --- & 2907 & 0 & 141 & descriptive \\
+MARV header & 3155 & 2981 & 0$^{\mathrm{a}}$ & 24 & refresh$=$0 \\
+\hline
+\multicolumn{6}{l}{\footnotesize $^{\mathrm{a}}$MARV export codes slow-refresh and residual adaptive starts in \texttt{cause\_other}.}\\
+\end{tabular*}
+\end{table*}

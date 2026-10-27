@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this repository, please cite the DA-HELLO paper (fill fields below)."
+title: "DA-HELLO: Decision-Aware HELLO Scheduling for Q-Learning Underwater Routers"
+authors:
+  - family-names: "[FAMILY]"
+    given-names: "[GIVEN]"
+version: "0.1.0"
+date-released: "2026-10-27"
+url: "https://github.com/[ORG]/[REPO]"
+# PLACEHOLDER — Ali fills authors, DOI, journal/conference once known.

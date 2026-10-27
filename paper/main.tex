@@ -1,0 +1,60 @@
+\documentclass[journal]{IEEEtran}
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{url}
+\usepackage{textcomp}
+\usepackage{bm}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{dblfloatfix}
+\usepackage{float}
+\usepackage{placeins}
+\newcommand{\TBD}[1]{\textcolor{red}{[TBD: #1]}}
+\setlength{\textfloatsep}{4pt plus 1pt minus 2pt}
+\setlength{\floatsep}{6pt plus 1pt minus 2pt}
+\setlength{\intextsep}{6pt plus 1pt minus 2pt}
+\setlength{\dbltextfloatsep}{5pt plus 1pt minus 2pt}
+\setlength{\dblfloatsep}{6pt plus 1pt minus 2pt}
+\setlength{\abovecaptionskip}{3pt}
+\setlength{\belowcaptionskip}{0pt}
+% Allow two double-column floats at page top (settings+arms)
+\setcounter{dbltopnumber}{2}
+\renewcommand{\dbltopfraction}{0.9}
+
+
+\hyphenation{Aqua-Sim under-water event-triggered Bellhop DA-HELLO DA-HELLO LQARP}
+
+\begin{document}
+
+\title{DA-HELLO: State-Carrier-Dependent HELLO Scheduling for
+Q-Learning Routing in Underwater Sensor Networks}
+
+\input{authors}
+
+\markboth{IEEE Internet of Things Journal}%
+{Ma \MakeLowercase{\textit{et al.}}: Decision-Aware HELLO Scheduling for Mobile UWSNs}
+
+\maketitle
+
+\input{abstract}
+\input{keywords}
+\input{sec1_introduction}
+\input{sec2_related}
+\input{sec3_system_problem}
+\input{sec4_design}
+\input{sec5_evaluation}
+\FloatBarrier
+\input{sec5_conclusion}
+
+{\footnotesize
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+}
+
+\end{document}

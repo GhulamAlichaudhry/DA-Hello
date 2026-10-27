@@ -1,0 +1,65 @@
+--- ${WORKSPACE}/DA-HELLO-porta/build_p17/src/examples/scenario-i-lqarp.cc	2026-10-23 14:22:27.873742721 +0800
++++ ${WORKSPACE}/DA-HELLO-porta/build_p18/src/examples/scenario-i-lqarp.cc	2026-10-23 14:49:46.268610040 +0800
+@@ -2768,6 +2768,7 @@
+   // A2.11: QELAR-only switches (default OFF => p17 bit-identical to p16 when unset)
+   bool qelarDaFix = false;           // honour CLI DA params + allocate FC + export mem/rank/fc/refresh
+   bool qelarHelloOnly = false;       // data headers carry no neighbour attrs; HELLO/beacon only
++  bool qelarDaFc = true;             // A2.12: with qelarDaFix, 1=allocate FC (p17); 0=no FC reply
+   double sinkBeaconPhase = 0.0;      // (d) beacons at phase + sinkBeaconS*k, k >= 1
+   bool pollStored = false;           // (e) pollPair reads the stored record
+   std::string recWriteOut;           // output-only counter file (empty = none)
+@@ -3939,7 +3940,8 @@
+             {
+               // A2.11: honour CLI --daMargin/--daImin/--daDoublings/--daRefresh.
+               q->enableHostDa (2, daMargin, daImin, daDoublings, tNbS, daRefresh);
+-              fcOn = true; // FC state allocated after SetupMedium (see main)
++              // A2.12: FC reply only when --qelarDaFc=1 (default); =0 => mem/rank/refresh only.
++              fcOn = qelarDaFc;
+             }
+           else
+             {
+@@ -3958,7 +3960,8 @@
+                 << " hostFidelity=" << hostFidelity
+                 << (hostDa ? " hostSched=da" : "")
+                 << (qelarDaFix ? " qelarDaFix=1" : "")
+-                << (qelarHelloOnly ? " qelarHelloOnly=1" : "") << "\n";
++                << (qelarHelloOnly ? " qelarHelloOnly=1" : "")
++                << ((qelarDaFix && !qelarDaFc) ? " qelarDaFc=0" : "") << "\n";
+     }
+   else if (protoName == "saqr" || protoName == "saqr-hello" || protoName == "saqr-hello-energy")
+     {
+@@ -6446,8 +6449,13 @@
+           << " fc_cancel=" << fcCancel
+           << " fc_ratelim=" << fcRateLim
+           << " qelarHelloOnly=" << (qelarHelloOnly ? 1 : 0)
+-          << " data_writes_suppressed=" << rwDataSkipped
+-          << "\n";
++          << " data_writes_suppressed=" << rwDataSkipped;
++      // A2.12: emit qelarDaFc only when 0 so default (1) stays bit-identical to p17.
++      if (!qelarDaFc)
++        {
++          oss << " qelarDaFc=0";
++        }
++      oss << "\n";
+     }
+   oss
+       << "event_hellos=" << eventHelloWindow
+@@ -8916,6 +8924,7 @@
+   cmd.AddValue ("helloOnlyHost", "p15 A2.2(b): 1 = neighbour state written ONLY from HELLO/beacon decodes (forces --pollStored=1); 0 = p14", pipe.helloOnlyHost);
+   cmd.AddValue ("qelarDaFix", "A2.11: 1 = QELAR DA honours CLI daMargin/daImin/daDoublings/daRefresh + FC reply + mem/rank/refresh export; 0 = p16 hard-coded", pipe.qelarDaFix);
+   cmd.AddValue ("qelarHelloOnly", "A2.11: 1 = QELAR data headers carry no neighbour attrs (V/E/groupAvg/depth); neighbour records only from HELLO/beacon; requires hostFidelity=1", pipe.qelarHelloOnly);
++  cmd.AddValue ("qelarDaFc", "A2.12: with --qelarDaFix=1, 1 = allocate first-contact reply (default, p17); 0 = membership/rank/refresh only, fc_reply=0", pipe.qelarDaFc);
+   cmd.AddValue ("eddyCx", "p15 A2.2(d): eddy centre x (m), default 3000 = p14", g_eddyCx);
+   cmd.AddValue ("eddyCy", "p15 A2.2(d): eddy centre y (m), default 3000 = p14", g_eddyCy);
+   cmd.AddValue ("eddyR", "p15 A2.2(d): eddy core radius (m), default 2000 = p14", g_eddyR);
+@@ -9078,8 +9087,8 @@
+     {
+       pipe.InstallComparators ();
+     }
+-  // A2.11: QELAR --qelarDaFix=1 allocates first-contact state (p16 set fcOn but never fcSt).
+-  if (pipe.qelarDaFix && pipe.fcOn && pipe.fcSt.empty ())
++  // A2.11/A2.12: QELAR --qelarDaFix=1 allocates FC when --qelarDaFc=1 (default; p17 identity).
++  if (pipe.qelarDaFix && pipe.qelarDaFc && pipe.fcOn && pipe.fcSt.empty ())
+     {
+       pipe.fcSt.assign (pipe.nNodes (), cmp::FcState{});
+       pipe.fcRng.seed (static_cast<uint64_t> (pipe.seed) * 0xD1B54A32D192ED03ull + 29);

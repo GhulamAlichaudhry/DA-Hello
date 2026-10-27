@@ -1,0 +1,29 @@
+\begin{table*}[!t]
+\caption{Simulation Settings (Evaluation Campaigns t103/t109).
+Scheduler Parameters Are Those Locked in Section~\ref{sec:arms}.}
+\label{tab:settings}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}ll@{\hspace{1.2em}}ll@{}}
+\hline
+Parameter & Value & Parameter & Value \\
+\hline
+Volume / $N$ & $4{\times}4{\times}3.5\,\mathrm{km}$ / $149{+}1$
+  & Bit rate / HELLO, data / ACK & $5\,\mathrm{kbit/s}$ / $400$ / $64\,\mathrm{bit}$ \\
+$P_{\mathrm{tx}}$ / $P_{\mathrm{rx}}$ / $P_{\mathrm{idle}}$
+  & $8$ / $1.3$ / $0.285\,\mathrm{W}$
+  & MAC / channel / discovery & CS / formula / heard \\
+$T_{\mathrm{sim}}$ / warm / drain & $14400$ / $900$ / $300\,\mathrm{s}$
+  & Data interval / $T_{\mathrm{nb}}$ / beacon & $1200$ / $3600$ / $60\,\mathrm{s}$ \\
+Eddy centre / radius & $(2000,2000)$ / $2828\,\mathrm{m}$
+  & Sc.~I / II / GM2 & static / $V{=}0.15$ / $V{=}0.3$ \\
+Relay removal (II/GM2) & $22\%$ / $30\%$ (means)
+  & Periodic $T$ (jittered) & $\{20{..}120\}$ / $\{60,120\}$ \\
+B2* Trickle & $I_{\min}{=}20\,\mathrm{s}$, $8$ dbl., $k{=}5$
+  & Eval.\ seeds ($n{=}40$) & $20261801$--$40$ / $20261841$--$80$ \\
+Tuning seeds (pilots) & $20261114$--$23$
+  & Non-inf.\ margin & $0.5\,\mathrm{pp}$ / $3\,\mathrm{pp}$ (QELAR) \\
+\hline
+\end{tabular*}
+\end{table*}

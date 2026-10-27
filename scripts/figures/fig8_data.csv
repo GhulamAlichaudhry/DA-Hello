@@ -1,0 +1,67 @@
+figure,arm,scenario,n,mean,ci_lo,ci_hi,source_file,column,filter,metric,N
+fig8,B0/header,II,10,0.975347222218,0.97456175098142,0.97613269345458,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=B0;sc=II;nAuv=40,O_ctrl,40
+fig8,B0/header,II,10,1.07916666666,1.0781193716839257,1.0802139616360742,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=B0;sc=II;nAuv=70,O_ctrl,70
+fig8,B0/header,II,10,1.18368055558,1.1828950843479444,1.1844660268120557,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=B0;sc=II;nAuv=100,O_ctrl,100
+fig8,B0/header,II,10,1.35347222224,1.3524249272337636,1.3545195172462363,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=B0;sc=II;nAuv=149,O_ctrl,149
+fig8,T120/header,II,10,15.9989583333,15.368302101429311,16.629614565170687,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=T120;sc=II;nAuv=40,O_ctrl,40
+fig8,T120/header,II,10,26.8621527779,26.06071970126598,27.66358585453402,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=T120;sc=II;nAuv=70,O_ctrl,70
+fig8,T120/header,II,10,37.2468750001,36.17587156675935,38.31787843344065,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=T120;sc=II;nAuv=100,O_ctrl,100
+fig8,T120/header,II,10,55.25868055549999,54.05201035371922,56.46535075728077,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=T120;sc=II;nAuv=149,O_ctrl,149
+fig8,Trickle (tuned)/header,II,10,4.636111111109999,4.3228145193250045,4.949407702894994,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=B2star;sc=II;nAuv=40,O_ctrl,40
+fig8,Trickle (tuned)/header,II,10,8.9027777778,8.474195418204607,9.331360137395395,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=B2star;sc=II;nAuv=70,O_ctrl,70
+fig8,Trickle (tuned)/header,II,10,13.9881944445,13.510023421685668,14.466365467314331,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=B2star;sc=II;nAuv=100,O_ctrl,100
+fig8,Trickle (tuned)/header,II,10,24.7468750003,24.144784611437927,25.348965389162075,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=B2star;sc=II;nAuv=149,O_ctrl,149
+fig8,DA-HELLO/header,II,10,1.6499999999900001,1.5962935736743662,1.703706426305634,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=Pstar;sc=II;nAuv=40,O_ctrl,40
+fig8,DA-HELLO/header,II,10,3.278125,3.1561451973840144,3.400104802615986,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=Pstar;sc=II;nAuv=70,O_ctrl,70
+fig8,DA-HELLO/header,II,10,5.81006944444,5.597498068510842,6.0226408203691575,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=Pstar;sc=II;nAuv=100,O_ctrl,100
+fig8,DA-HELLO/header,II,10,11.9774305556,11.66655358244003,12.288307528759969,t103_per_run.csv,O_ctrl,C3n;host=piggy;arm=Pstar;sc=II;nAuv=149,O_ctrl,149
+fig8,DA-HELLO_exponent/header,II,4,1.5019379434047653,1.5019379434047653,1.5019379434047653,t103_per_run.csv,derived_loglog_fit,C3n;arm=Pstar;sc=II;host=piggy,exponent,
+fig8,B0/HELLO-only,II,10,0.975347222218,0.97456175098142,0.97613269345458,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=B0;sc=II;nAuv=40,O_ctrl,40
+fig8,B0/HELLO-only,II,10,1.07951388888,1.0787284176479444,1.0802993601120556,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=B0;sc=II;nAuv=70,O_ctrl,70
+fig8,B0/HELLO-only,II,10,1.18368055558,1.1828950843479444,1.1844660268120557,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=B0;sc=II;nAuv=100,O_ctrl,100
+fig8,B0/HELLO-only,II,10,1.35381944447,1.3530339732153227,1.3546049157246773,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=B0;sc=II;nAuv=149,O_ctrl,149
+fig8,T120/HELLO-only,II,10,15.9989583333,15.368302101429311,16.629614565170687,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=T120;sc=II;nAuv=40,O_ctrl,40
+fig8,T120/HELLO-only,II,10,26.8611111112,26.059511298683,27.662710923717,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=T120;sc=II;nAuv=70,O_ctrl,70
+fig8,T120/HELLO-only,II,10,37.2461805557,36.17440355762897,38.31795755377103,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=T120;sc=II;nAuv=100,O_ctrl,100
+fig8,T120/HELLO-only,II,10,55.2579861111,54.05233279321509,56.46363942898491,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=T120;sc=II;nAuv=149,O_ctrl,149
+fig8,Trickle (tuned)/HELLO-only,II,10,5.586805555560001,5.337731482706644,5.835879628413357,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=B2star;sc=II;nAuv=40,O_ctrl,40
+fig8,Trickle (tuned)/HELLO-only,II,10,10.5239583333,10.104156880280113,10.943759786319886,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=B2star;sc=II;nAuv=70,O_ctrl,70
+fig8,Trickle (tuned)/HELLO-only,II,10,16.314236111000003,15.705185171452065,16.92328705054794,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=B2star;sc=II;nAuv=100,O_ctrl,100
+fig8,Trickle (tuned)/HELLO-only,II,10,27.8444444444,27.291995348307225,28.396893540492776,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=B2star;sc=II;nAuv=149,O_ctrl,149
+fig8,DA-HELLO/HELLO-only,II,10,5.2715277778,5.062216763930814,5.4808387916691865,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=Pstar;sc=II;nAuv=40,O_ctrl,40
+fig8,DA-HELLO/HELLO-only,II,10,9.929861111120001,9.54928644927869,10.310435772961313,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=Pstar;sc=II;nAuv=70,O_ctrl,70
+fig8,DA-HELLO/HELLO-only,II,10,15.757986111400001,15.227117498971037,16.288854723828965,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=Pstar;sc=II;nAuv=100,O_ctrl,100
+fig8,DA-HELLO/HELLO-only,II,10,29.290625,28.39932216837963,30.181927831620367,t103_per_run.csv,O_ctrl,C3n;host=hoh;arm=Pstar;sc=II;nAuv=149,O_ctrl,149
+fig8,DA-HELLO_exponent/HELLO-only,II,4,1.2949907058438976,1.2949907058438976,1.2949907058438976,t103_per_run.csv,derived_loglog_fit,C3n;arm=Pstar;sc=II;host=hoh,exponent,
+fig8,B0/header,II,10,0.42992333559999996,0.27793092667880376,0.5819157445211962,t103_per_run.csv,wpdr,C3n;host=piggy;arm=B0;sc=II;nAuv=40,PDR,40
+fig8,B0/header,II,10,0.66150193359,0.5343075585644007,0.7886963086155993,t103_per_run.csv,wpdr,C3n;host=piggy;arm=B0;sc=II;nAuv=70,PDR,70
+fig8,B0/header,II,10,0.80148560194,0.7581785510437717,0.8447926528362282,t103_per_run.csv,wpdr,C3n;host=piggy;arm=B0;sc=II;nAuv=100,PDR,100
+fig8,B0/header,II,10,0.85789100287,0.8213363644849154,0.8944456412550845,t103_per_run.csv,wpdr,C3n;host=piggy;arm=B0;sc=II;nAuv=149,PDR,149
+fig8,T120/header,II,10,0.41692132667,0.2612490223006768,0.5725936310393231,t103_per_run.csv,wpdr,C3n;host=piggy;arm=T120;sc=II;nAuv=40,PDR,40
+fig8,T120/header,II,10,0.64629520346,0.5328345734644377,0.7597558334555623,t103_per_run.csv,wpdr,C3n;host=piggy;arm=T120;sc=II;nAuv=70,PDR,70
+fig8,T120/header,II,10,0.76383556465,0.7174716833489471,0.810199445951053,t103_per_run.csv,wpdr,C3n;host=piggy;arm=T120;sc=II;nAuv=100,PDR,100
+fig8,T120/header,II,10,0.83018782773,0.7954703609353322,0.8649052945246678,t103_per_run.csv,wpdr,C3n;host=piggy;arm=T120;sc=II;nAuv=149,PDR,149
+fig8,Trickle (tuned)/header,II,10,0.42669071746,0.27212926196914966,0.5812521729508503,t103_per_run.csv,wpdr,C3n;host=piggy;arm=B2star;sc=II;nAuv=40,PDR,40
+fig8,Trickle (tuned)/header,II,10,0.67374042335,0.5949344416640532,0.7525464050359467,t103_per_run.csv,wpdr,C3n;host=piggy;arm=B2star;sc=II;nAuv=70,PDR,70
+fig8,Trickle (tuned)/header,II,10,0.7962350415899999,0.7545474594835907,0.8379226236964091,t103_per_run.csv,wpdr,C3n;host=piggy;arm=B2star;sc=II;nAuv=100,PDR,100
+fig8,Trickle (tuned)/header,II,10,0.8511504479800001,0.8188196578825915,0.8834812380774086,t103_per_run.csv,wpdr,C3n;host=piggy;arm=B2star;sc=II;nAuv=149,PDR,149
+fig8,DA-HELLO/header,II,10,0.44469735951,0.30410113939294614,0.5852935796270539,t103_per_run.csv,wpdr,C3n;host=piggy;arm=Pstar;sc=II;nAuv=40,PDR,40
+fig8,DA-HELLO/header,II,10,0.67842229538,0.5770497427364268,0.7797948480235731,t103_per_run.csv,wpdr,C3n;host=piggy;arm=Pstar;sc=II;nAuv=70,PDR,70
+fig8,DA-HELLO/header,II,10,0.79389207823,0.7480045627354602,0.8397795937245397,t103_per_run.csv,wpdr,C3n;host=piggy;arm=Pstar;sc=II;nAuv=100,PDR,100
+fig8,DA-HELLO/header,II,10,0.86315331854,0.8346394358845532,0.8916672011954467,t103_per_run.csv,wpdr,C3n;host=piggy;arm=Pstar;sc=II;nAuv=149,PDR,149
+fig8,B0/HELLO-only,II,10,0.10545739727,0.05414168965157594,0.15677310488842405,t103_per_run.csv,wpdr,C3n;host=hoh;arm=B0;sc=II;nAuv=40,PDR,40
+fig8,B0/HELLO-only,II,10,0.13445988723,0.08724672091145685,0.18167305354854313,t103_per_run.csv,wpdr,C3n;host=hoh;arm=B0;sc=II;nAuv=70,PDR,70
+fig8,B0/HELLO-only,II,10,0.13725641148999998,0.10105413750504219,0.17345868547495777,t103_per_run.csv,wpdr,C3n;host=hoh;arm=B0;sc=II;nAuv=100,PDR,100
+fig8,B0/HELLO-only,II,10,0.15786596841,0.12836066770897178,0.18737126911102822,t103_per_run.csv,wpdr,C3n;host=hoh;arm=B0;sc=II;nAuv=149,PDR,149
+fig8,T120/HELLO-only,II,10,0.41266398965999995,0.2656478593652981,0.5596801199547018,t103_per_run.csv,wpdr,C3n;host=hoh;arm=T120;sc=II;nAuv=40,PDR,40
+fig8,T120/HELLO-only,II,10,0.62592270754,0.517071763191357,0.7347736518886431,t103_per_run.csv,wpdr,C3n;host=hoh;arm=T120;sc=II;nAuv=70,PDR,70
+fig8,T120/HELLO-only,II,10,0.76267508572,0.715344062945905,0.8100061084940949,t103_per_run.csv,wpdr,C3n;host=hoh;arm=T120;sc=II;nAuv=100,PDR,100
+fig8,T120/HELLO-only,II,10,0.8190703235600001,0.779605135349624,0.8585355117703762,t103_per_run.csv,wpdr,C3n;host=hoh;arm=T120;sc=II;nAuv=149,PDR,149
+fig8,Trickle (tuned)/HELLO-only,II,10,0.37826492277,0.26113472541538235,0.49539512012461767,t103_per_run.csv,wpdr,C3n;host=hoh;arm=B2star;sc=II;nAuv=40,PDR,40
+fig8,Trickle (tuned)/HELLO-only,II,10,0.64483125095,0.5598788362992839,0.7297836656007162,t103_per_run.csv,wpdr,C3n;host=hoh;arm=B2star;sc=II;nAuv=70,PDR,70
+fig8,Trickle (tuned)/HELLO-only,II,10,0.78161099933,0.7418422049631298,0.8213797936968702,t103_per_run.csv,wpdr,C3n;host=hoh;arm=B2star;sc=II;nAuv=100,PDR,100
+fig8,Trickle (tuned)/HELLO-only,II,10,0.8409246228499999,0.8052031986264151,0.8766460470735847,t103_per_run.csv,wpdr,C3n;host=hoh;arm=B2star;sc=II;nAuv=149,PDR,149
+fig8,DA-HELLO/HELLO-only,II,10,0.43877051111,0.2892274244851537,0.5883135977348463,t103_per_run.csv,wpdr,C3n;host=hoh;arm=Pstar;sc=II;nAuv=40,PDR,40
+fig8,DA-HELLO/HELLO-only,II,10,0.67206223426,0.5598277366724678,0.7842967318475322,t103_per_run.csv,wpdr,C3n;host=hoh;arm=Pstar;sc=II;nAuv=70,PDR,70
+fig8,DA-HELLO/HELLO-only,II,10,0.7947106287200001,0.7565143175583523,0.8329069398816479,t103_per_run.csv,wpdr,C3n;host=hoh;arm=Pstar;sc=II;nAuv=100,PDR,100
+fig8,DA-HELLO/HELLO-only,II,10,0.84252419515,0.8072163716385127,0.8778320186614873,t103_per_run.csv,wpdr,C3n;host=hoh;arm=Pstar;sc=II;nAuv=149,PDR,149

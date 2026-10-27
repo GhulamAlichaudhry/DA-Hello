@@ -1,0 +1,10 @@
+{
+  "logical_jobs": 3040,
+  "unique_rundirs": 2800,
+  "jobs_complete.jsonl_sha256": "b4b1851ae2a9ac8ce72fb3033249d9c331d8cbfabfff9cce2153ca0f2bedd0f6",
+  "jobs_manifest.txt_sha256": "21d8a4301661533c86737124c457f72309ed7c1bd65a61d06f95e06fa7ab1ce0",
+  "jobs_unique.json_sha256": "01fe8f7183cbeefce1976e0b2389805867c1de7fb002296ad9cf95dbfd28903e",
+  "eval_addendum_sha256": "fb0895baa1ba086cc99cf9af57554d1a2e272faaa1368fd09fad9490ae21ea65",
+  "exe_sha256": "e66b8970b6d4ad91cbe939b77b0ba2fb10e21521d68e08f4853fefee4dff7396",
+  "lib_sha256": "ad9cc623ee99eb44def7b243bf1b62e3954364b4f213ac486e7ff1ead3f24395"
+}
